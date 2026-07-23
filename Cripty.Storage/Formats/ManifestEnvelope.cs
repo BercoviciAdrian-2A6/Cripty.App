@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
+using Cripty.Cryptography.Models;
 
 namespace Cripty.Storage.Formats
 {

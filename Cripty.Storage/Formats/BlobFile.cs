@@ -2,9 +2,9 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace Cripty.Core.Vault.Fields
+namespace Cripty.Storage.Formats
 {
-    public class BlobReference
+    internal class BlobFile
     {
     }
 }

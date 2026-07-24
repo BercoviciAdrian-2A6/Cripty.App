@@ -8,6 +8,7 @@
 	
 <ItemGroup>
 	<ProjectReference Include="..\Cripty.Cryptography\Cripty.Cryptography.csproj" />
+	<ProjectReference Include="..\Cripty.Core\Cripty.Core.csproj" />
 </ItemGroup>
 
 </Project>

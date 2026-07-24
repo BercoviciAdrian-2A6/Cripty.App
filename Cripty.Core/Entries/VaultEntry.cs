@@ -1,15 +1,27 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+﻿namespace Cripty.Core.Entries;
 
-namespace Cripty.Core.Entries
+public sealed class VaultEntry
 {
-    public sealed class VaultEntry
-    {
-        public int SchemaVersion { get; init; }
-        public Guid EntryId { get; init; }
-        public long Revision { get; init; }
+    private readonly List<EntryField> _fields;
+    private readonly IReadOnlyList<EntryField> _fieldsView;
 
-        public List<EntryField> Fields { get; init; } = [];
+    public int SchemaVersion { get; }
+    public Guid EntryId { get; }
+    public long Revision { get; }
+
+    public IReadOnlyList<EntryField> Fields => _fieldsView;
+
+    public VaultEntry(
+        int schemaVersion,
+        Guid entryId,
+        long revision,
+        IEnumerable<EntryField> fields)
+    {
+        SchemaVersion = schemaVersion;
+        EntryId = entryId;
+        Revision = revision;
+
+        _fields = [.. fields];
+        _fieldsView = _fields.AsReadOnly();
     }
 }

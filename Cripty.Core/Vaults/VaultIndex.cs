@@ -1,51 +1,92 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+﻿using System.Collections.ObjectModel;
 
-namespace Cripty.Core.Vaults
+namespace Cripty.Core.Vaults;
+
+public sealed class VaultIndex
 {
-    public sealed class VaultIndex
+    public IReadOnlyDictionary<Guid, IReadOnlyList<EntryDescriptor>>
+        EntriesByFolderId
+    { get; }
+
+    public IReadOnlyDictionary<Guid, IReadOnlyList<EntryDescriptor>>
+        EntriesByTagId
+    { get; }
+
+    // Entries whose FolderId is null.
+    public IReadOnlyList<EntryDescriptor> RootEntries { get; }
+
+    private VaultIndex(
+        IReadOnlyDictionary<Guid, IReadOnlyList<EntryDescriptor>>
+            entriesByFolderId,
+        IReadOnlyDictionary<Guid, IReadOnlyList<EntryDescriptor>>
+            entriesByTagId,
+        IReadOnlyList<EntryDescriptor> rootEntries)
     {
-        public Dictionary<Guid, List<EntryDescriptor>> EntriesByFolderId { get; } = [];
-        public Dictionary<Guid, List<EntryDescriptor>> EntriesByTagId { get; } = [];
+        EntriesByFolderId = entriesByFolderId;
+        EntriesByTagId = entriesByTagId;
+        RootEntries = rootEntries;
+    }
 
-        // Entries whose FolderId is null.
-        public List<EntryDescriptor> RootEntries { get; } = [];
+    public static VaultIndex Build(VaultManifest manifest)
+    {
+        ArgumentNullException.ThrowIfNull(manifest);
 
-        public static VaultIndex Build(VaultManifest manifest)
+        Dictionary<Guid, List<EntryDescriptor>> byFolder = [];
+        Dictionary<Guid, List<EntryDescriptor>> byTag = [];
+        List<EntryDescriptor> rootEntries = [];
+
+        foreach (EntryDescriptor entry in manifest.Entries)
         {
-            VaultIndex index = new();
-
-            foreach (EntryDescriptor entry in manifest.Entries)
+            if (entry.FolderId is Guid folderId)
             {
-                if (entry.FolderId is Guid folderId)
-                {
-                    if (!index.EntriesByFolderId.TryGetValue(folderId, out var entries))
-                    {
-                        entries = [];
-                        index.EntriesByFolderId.Add(folderId, entries);
-                    }
-
-                    entries.Add(entry);
-                }
-                else
-                {
-                    index.RootEntries.Add(entry);
-                }
-
-                foreach (Guid tagId in entry.TagIds)
-                {
-                    if (!index.EntriesByTagId.TryGetValue(tagId, out var entries))
-                    {
-                        entries = [];
-                        index.EntriesByTagId.Add(tagId, entries);
-                    }
-
-                    entries.Add(entry);
-                }
+                Add(byFolder, folderId, entry);
+            }
+            else
+            {
+                rootEntries.Add(entry);
             }
 
-            return index;
+            foreach (Guid tagId in entry.TagIds)
+            {
+                Add(byTag, tagId, entry);
+            }
         }
+
+        return new VaultIndex(
+            ToReadOnly(byFolder),
+            ToReadOnly(byTag),
+            rootEntries.AsReadOnly());
+    }
+
+    private static void Add(
+        Dictionary<Guid, List<EntryDescriptor>> lookup,
+        Guid id,
+        EntryDescriptor entry)
+    {
+        if (!lookup.TryGetValue(
+                id,
+                out List<EntryDescriptor>? entries))
+        {
+            entries = [];
+            lookup.Add(id, entries);
+        }
+
+        entries.Add(entry);
+    }
+
+    private static IReadOnlyDictionary<
+        Guid,
+        IReadOnlyList<EntryDescriptor>> ToReadOnly(
+            Dictionary<Guid, List<EntryDescriptor>> source)
+    {
+        Dictionary<Guid, IReadOnlyList<EntryDescriptor>> result =
+            source.ToDictionary(
+                pair => pair.Key,
+                pair => (IReadOnlyList<EntryDescriptor>)
+                    pair.Value.AsReadOnly());
+
+        return new ReadOnlyDictionary<
+            Guid,
+            IReadOnlyList<EntryDescriptor>>(result);
     }
 }

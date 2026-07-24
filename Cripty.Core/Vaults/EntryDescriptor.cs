@@ -1,19 +1,60 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+﻿namespace Cripty.Core.Vaults;
 
-namespace Cripty.Core.Vaults
+public sealed class EntryDescriptor
 {
-    public sealed class EntryDescriptor
+    private readonly List<Guid> _tagIds;
+    private readonly IReadOnlyList<Guid> _tagIdsView;
+
+    public Guid EntryId { get; }
+
+    public string Name { get; private set; }
+    public Guid? FolderId { get; private set; }
+
+    public IReadOnlyList<Guid> TagIds => _tagIdsView;
+
+    public long Revision { get; private set; }
+
+    public DateTimeOffset CreatedUtc { get; }
+    public DateTimeOffset ModifiedUtc { get; private set; }
+
+    public EntryDescriptor(
+        Guid entryId,
+        string name,
+        Guid? folderId,
+        IEnumerable<Guid> tagIds,
+        long revision,
+        DateTimeOffset createdUtc,
+        DateTimeOffset modifiedUtc)
     {
-        public Guid EntryId { get; init; }
-        public required string Name { get; init; }
+        EntryId = entryId;
+        Name = name;
+        FolderId = folderId;
 
-        public Guid? FolderId { get; init; }
-        public List<Guid> TagIds { get; init; } = [];
+        _tagIds = [.. tagIds];
+        _tagIdsView = _tagIds.AsReadOnly();
 
-        public long Revision { get; init; }
-        public DateTimeOffset CreatedUtc { get; init; }
-        public DateTimeOffset ModifiedUtc { get; init; }
+        Revision = revision;
+        CreatedUtc = createdUtc;
+        ModifiedUtc = modifiedUtc;
+    }
+
+    internal void Rename(string name)
+    {
+        Name = name;
+    }
+
+    internal void MoveTo(Guid? folderId)
+    {
+        FolderId = folderId;
+    }
+
+    internal void AddTag(Guid tagId)
+    {
+        _tagIds.Add(tagId);
+    }
+
+    internal void RemoveTag(Guid tagId)
+    {
+        _tagIds.Remove(tagId);
     }
 }

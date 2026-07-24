@@ -1,15 +1,31 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+﻿namespace Cripty.Core.Vaults;
 
-namespace Cripty.Core.Vaults
+public sealed class TagDescriptor
 {
-    public sealed class TagDescriptor
-    {
-        public Guid TagId { get; init; }
-        public required string Name { get; init; }
+    public Guid TagId { get; }
 
-        // Optional UI metadata.
-        public string? Color { get; init; }
+    public string Name { get; private set; }
+
+    // Optional UI metadata.
+    public string? Color { get; private set; }
+
+    public TagDescriptor(
+        Guid tagId,
+        string name,
+        string? color)
+    {
+        TagId = tagId;
+        Name = name;
+        Color = color;
+    }
+
+    internal void Rename(string name)
+    {
+        Name = name;
+    }
+
+    internal void SetColor(string? color)
+    {
+        Color = color;
     }
 }

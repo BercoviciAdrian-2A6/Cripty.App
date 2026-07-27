@@ -3,6 +3,7 @@
   <Project Path="Cripty.Core/Cripty.Core.csproj" />
   <Project Path="Cripty.Cryptography.Tests/Cripty.Cryptography.Tests.csproj" />
   <Project Path="Cripty.Cryptography/Cripty.Cryptography.csproj" />
+  <Project Path="Cripty.Storage.Tests/Cripty.Storage.Tests.csproj" Id="b716fe4f-56c4-44ee-b08c-9117c5912671" />
   <Project Path="Cripty.Storage/Cripty.Storage.csproj" />
   <Project Path="Cripty/Cripty.csproj" />
 </Solution>

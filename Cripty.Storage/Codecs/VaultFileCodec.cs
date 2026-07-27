@@ -115,9 +115,9 @@ public sealed class VaultFileCodec
     }
 
     public VaultFile UpdateManifest(
-    VaultFile existingFile,
-    VaultManifest modifiedManifest,
-    ReadOnlySpan<byte> vaultRootKey)
+        VaultFile existingFile,
+        VaultManifest modifiedManifest,
+        ReadOnlySpan<byte> vaultRootKey)
     {
         ArgumentNullException.ThrowIfNull(existingFile);
         ArgumentNullException.ThrowIfNull(modifiedManifest);
@@ -130,23 +130,64 @@ public sealed class VaultFileCodec
                 "The manifest belongs to a different vault.");
         }
 
-        CbcHmacEnvelope manifestEnvelope =
-            EncryptManifest(
-                modifiedManifest,
-                vaultRootKey,
-                existingFile.FormatVersion);
+        Span<byte> manifestKey =
+            stackalloc byte[HkdfKeySchedule.DerivedKeySize];
 
-        return new VaultFile
+        byte[] existingManifestPlaintext = Array.Empty<byte>();
+
+        try
         {
-            FormatVersion = existingFile.FormatVersion,
-            VaultId = existingFile.VaultId,
+            //ensure the key recieved is actually the root key by decrypting the manifest
+            HkdfKeySchedule.DeriveManifestKey(
+                vaultRootKey,
+                existingFile.VaultId,
+                manifestKey);
 
-            // Preserve this exactly as it was.
-            PasswordKeySlot = existingFile.PasswordKeySlot,
+            byte[] associatedData =
+                StorageAssociatedData.ForManifest(
+                    existingFile.FormatVersion,
+                    existingFile.VaultId);
 
-            // Only this is replaced.
-            ManifestEnvelope = manifestEnvelope
-        };
+            bool rootKeyIsCorrect =
+                A256CbcHs512Cipher.TryDecrypt(
+                    manifestKey,
+                    existingFile.ManifestEnvelope,
+                    associatedData,
+                    out existingManifestPlaintext);
+
+            if (!rootKeyIsCorrect)
+            {
+                throw new CryptographicException(
+                    "The supplied root key does not authenticate " +
+                    "the existing manifest.");
+            }
+
+            //it has been confirmed provided root key is correct
+
+
+            //encrypt the updated manifest
+            CbcHmacEnvelope updatedManifestEnvelope =
+                EncryptManifest(
+                    modifiedManifest,
+                    vaultRootKey,
+                    existingFile.FormatVersion);
+
+            return new VaultFile
+            {
+                //create new vault file with everything as is except updated manifest
+                FormatVersion = existingFile.FormatVersion,
+                VaultId = existingFile.VaultId,
+                PasswordKeySlot = existingFile.PasswordKeySlot,
+                ManifestEnvelope = updatedManifestEnvelope
+            };
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(manifestKey);
+
+            CryptographicOperations.ZeroMemory(
+                existingManifestPlaintext);
+        }
     }
 
     public VaultManifest Open(

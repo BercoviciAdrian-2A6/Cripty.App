@@ -6,6 +6,7 @@ using Cripty.Cryptography.Keys;
 using Cripty.Storage.DTOs;
 using Cripty.Storage.Formats;
 using Cripty.Storage.Mapping;
+using Cripty.Storage.Validation;
 
 namespace Cripty.Storage.Codecs;
 
@@ -48,6 +49,8 @@ public sealed class EntryFileCodec
                 "The entry ID cannot be empty.",
                 nameof(entry));
         }
+
+        VaultEntryValidator.Validate(entry);
 
         VaultEntryDto dto =
             _entryMapper.ToDto(entry);
@@ -151,6 +154,8 @@ public sealed class EntryFileCodec
                 ?? throw new InvalidDataException(
                     "The entry payload is missing.");
 
+            VaultEntryValidator.ValidateSchemaVersion(dto.SchemaVersion);
+
             if (dto.EntryId != file.EntryId)
             {
                 throw new InvalidDataException(
@@ -158,7 +163,11 @@ public sealed class EntryFileCodec
                     "the entry file ID.");
             }
 
-            return _entryMapper.ToDomain(dto);
+            VaultEntry entry = _entryMapper.ToDomain(dto);
+
+            VaultEntryValidator.Validate(entry);
+
+            return entry;
         }
         finally
         {

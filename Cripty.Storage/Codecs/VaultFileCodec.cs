@@ -7,6 +7,7 @@ using Cripty.Cryptography.Models;
 using Cripty.Storage.DTOs;
 using Cripty.Storage.Formats;
 using Cripty.Storage.Mapping;
+using Cripty.Storage.Validation;
 
 namespace Cripty.Storage.Codecs;
 
@@ -39,6 +40,8 @@ public sealed class VaultFileCodec
                 "The manifest vault ID cannot be empty.",
                 nameof(manifest));
         }
+
+        VaultManifestValidator.Validate(manifest);
 
         if (vaultRootKey.Length !=
             HkdfKeySchedule.VaultRootKeySize)
@@ -129,6 +132,8 @@ public sealed class VaultFileCodec
             throw new InvalidDataException(
                 "The manifest belongs to a different vault.");
         }
+
+        VaultManifestValidator.Validate(modifiedManifest);
 
         Span<byte> manifestKey =
             stackalloc byte[HkdfKeySchedule.DerivedKeySize];
@@ -288,6 +293,8 @@ public sealed class VaultFileCodec
                 ?? throw new InvalidDataException(
                     "The manifest payload is missing.");
 
+            VaultManifestValidator.ValidateSchemaVersion(dto.SchemaVersion);
+
             if (dto.VaultId != file.VaultId)
             {
                 throw new InvalidDataException(
@@ -297,6 +304,8 @@ public sealed class VaultFileCodec
 
             VaultManifest manifest =
                 VaultManifestMapper.ToDomain(dto);
+
+            VaultManifestValidator.Validate(manifest);
 
             unwrappedRootKey.CopyTo(
                 vaultRootKeyDestination);

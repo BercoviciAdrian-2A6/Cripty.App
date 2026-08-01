@@ -301,9 +301,21 @@ public sealed class VaultManifest
 
     // Save synchronization — intentionally deferred
 
-    public void RecordSuccessfulSave(long newGeneration)
+    public void RecordSuccessfulSave(
+        long newGeneration)
     {
-        throw new NotImplementedException();
+        long expectedGeneration =
+            checked(Generation + 1);
+
+        if (newGeneration != expectedGeneration)
+        {
+            throw new InvalidOperationException(
+                $"Expected manifest generation " +
+                $"'{expectedGeneration}', but received " +
+                $"'{newGeneration}'.");
+        }
+
+        Generation = newGeneration;
     }
 
     public void RecordEntryCommit(
@@ -311,7 +323,36 @@ public sealed class VaultManifest
         long committedRevision,
         DateTimeOffset modifiedUtc)
     {
-        throw new NotImplementedException();
+        EntryDescriptor entry =
+            GetEntry(entryId);
+
+        long expectedRevision =
+            checked(entry.Revision + 1);
+
+        if (committedRevision != expectedRevision)
+        {
+            throw new InvalidOperationException(
+                $"Expected entry revision '{expectedRevision}', " +
+                $"but received '{committedRevision}'.");
+        }
+
+        if (modifiedUtc.Offset != TimeSpan.Zero)
+        {
+            throw new ArgumentException(
+                "The modification time must use the UTC offset.",
+                nameof(modifiedUtc));
+        }
+
+        if (modifiedUtc < entry.ModifiedUtc)
+        {
+            throw new ArgumentException(
+                "The modification time cannot move backwards.",
+                nameof(modifiedUtc));
+        }
+
+        entry.RecordCommit(
+            committedRevision,
+            modifiedUtc);
     }
 
     // Lookup and validation helpers

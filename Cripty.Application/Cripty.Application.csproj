@@ -5,9 +5,11 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
-
-  <ItemGroup>
-    <Folder Include="Vaults\" />
-  </ItemGroup>
+	
+<ItemGroup>
+  <ProjectReference Include="..\Cripty.Core\Cripty.Core.csproj" />
+  <ProjectReference Include="..\Cripty.Cryptography\Cripty.Cryptography.csproj" />
+  <ProjectReference Include="..\Cripty.Storage\Cripty.Storage.csproj" />
+</ItemGroup>
 
 </Project>

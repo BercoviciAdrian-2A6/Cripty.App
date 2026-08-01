@@ -57,4 +57,12 @@ public sealed class EntryDescriptor
     {
         _tagIds.Remove(tagId);
     }
+
+    internal void RecordCommit(
+    long revision,
+    DateTimeOffset modifiedUtc)
+    {
+        Revision = revision;
+        ModifiedUtc = modifiedUtc;
+    }
 }

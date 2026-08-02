@@ -8,7 +8,7 @@ using Cripty.Storage.Formats;
 
 namespace Cripty.Application.Vaults;
 
-public sealed class VaultSession : IDisposable
+public sealed class VaultSession : IAsyncDisposable
 {
     private readonly VaultFileCodec _vaultFileCodec;
     private readonly EntryFileCodec _entryFileCodec;
@@ -90,7 +90,7 @@ public sealed class VaultSession : IDisposable
         ReadState(RequiresSaveRetryCore);
 
     public bool HasUnsavedChanges =>
-        ReadState(HasUnsavedChangesCore);
+        ReadState(HasUnsavedUserChangesCore);
 
     public int ManifestSchemaVersion =>
         ReadState(() =>
@@ -271,7 +271,7 @@ public sealed class VaultSession : IDisposable
             EnsureNotDisposed();
             ValidatePassword(newPassword);
 
-            if (HasUnsavedChangesCore())
+            if (HasUnsavedUserChangesCore())
             {
                 throw new InvalidOperationException(
                     "Save or discard all changes before changing " +
@@ -778,7 +778,7 @@ public sealed class VaultSession : IDisposable
         {
             EnsureNotDisposed();
 
-            if (!HasUnsavedChangesCore())
+            if (!HasPendingSaveWorkCore())
             {
                 return;
             }
@@ -1015,11 +1015,16 @@ public sealed class VaultSession : IDisposable
                 change.EntryFileWritten);
     }
 
-    private bool HasUnsavedChangesCore()
+    private bool HasUnsavedUserChangesCore()
     {
-        return IsManifestDirtyCore() ||
+        return _manifestDirty ||
                _pendingEntryChanges.Count > 0 ||
-               _entriesPendingDeletion.Count > 0 ||
+               _entriesPendingDeletion.Count > 0;
+    }
+
+    private bool HasPendingSaveWorkCore()
+    {
+        return HasUnsavedUserChangesCore() ||
                _orphanedEntryFilesPendingCleanup.Count > 0;
     }
 
@@ -1198,19 +1203,16 @@ public sealed class VaultSession : IDisposable
         }
     }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
-        // Every await performed while holding the operation gate
-        // uses ConfigureAwait(false), so waiting here does not
-        // depend on returning to a blocked UI synchronization context.
-        _operationGate.Wait();
+        await _operationGate
+            .WaitAsync()
+            .ConfigureAwait(false);
 
         try
         {
             if (_disposed)
-            {
                 return;
-            }
 
             _disposed = true;
 

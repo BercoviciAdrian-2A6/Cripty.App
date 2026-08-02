@@ -301,7 +301,7 @@ public sealed class VaultManifest
 
     // Save synchronization — intentionally deferred
 
-    public void RecordSuccessfulSave(
+    /*public void RecordSuccessfulSave(
         long newGeneration)
     {
         long expectedGeneration =
@@ -316,7 +316,7 @@ public sealed class VaultManifest
         }
 
         Generation = newGeneration;
-    }
+    }*/
 
     public void RecordEntryCommit(
         Guid entryId,

@@ -18,11 +18,25 @@ public sealed class VaultSession : IDisposable
 
     private readonly byte[] _vaultRootKey;
 
+    private readonly SemaphoreSlim _operationGate =
+        new(1, 1);
+
+    private readonly Dictionary<Guid, PendingEntryChange>
+        _pendingEntryChanges = [];
+
+    // Reversible deletions which have not yet been saved.
+    private readonly HashSet<Guid>
+        _entriesPendingDeletion = [];
+
+    // Files belonging to entries already removed from the
+    // persisted manifest, but whose physical deletion failed.
+    private readonly HashSet<Guid>
+        _orphanedEntryFilesPendingCleanup = [];
+
     private VaultFile _vaultFile;
+    private VaultIndex _index;
 
     private bool _manifestDirty;
-    private bool _entryDirty;
-    private bool _saveInProgress;
     private bool _disposed;
 
     private VaultSession(
@@ -39,7 +53,7 @@ public sealed class VaultSession : IDisposable
 
         _vaultFile = vaultFile;
         Manifest = manifest;
-        Index = VaultIndex.Build(manifest);
+        _index = VaultIndex.Build(manifest);
 
         _vaultRootKey = vaultRootKey;
 
@@ -52,37 +66,64 @@ public sealed class VaultSession : IDisposable
 
     public string VaultDirectoryPath { get; }
 
-    private VaultManifest Manifest { get; }
+    private VaultManifest Manifest { get; set; }
 
-    public VaultIndex Index { get; private set; }
+    public VaultIndex Index =>
+        ReadState(() => _index);
 
-    public VaultEntry? OpenEntry { get; private set; }
+    public bool IsManifestDirty =>
+        ReadState(IsManifestDirtyCore);
 
-    public bool IsManifestDirty => _manifestDirty;
+    public bool HasPendingEntryChanges =>
+        ReadState(() =>
+            _pendingEntryChanges.Count > 0);
 
-    public bool IsEntryDirty => _entryDirty;
+    public bool HasPendingEntryDeletions =>
+        ReadState(() =>
+            _entriesPendingDeletion.Count > 0);
+
+    public bool HasPendingEntryFileDeletions =>
+        ReadState(() =>
+            _orphanedEntryFilesPendingCleanup.Count > 0);
+
+    public bool RequiresSaveRetry =>
+        ReadState(RequiresSaveRetryCore);
 
     public bool HasUnsavedChanges =>
-        _manifestDirty || _entryDirty;
+        ReadState(HasUnsavedChangesCore);
 
-    // Read-only access for the UI:
     public int ManifestSchemaVersion =>
-        Manifest.SchemaVersion;
+        ReadState(() =>
+            Manifest.SchemaVersion);
 
     public Guid VaultId =>
-        Manifest.VaultId;
+        ReadState(() =>
+            Manifest.VaultId);
 
     public long ManifestGeneration =>
-        Manifest.Generation;
+        ReadState(() =>
+            Manifest.Generation);
 
     public IReadOnlyList<FolderDescriptor> Folders =>
-        Manifest.Folders;
+        ReadState(() =>
+            (IReadOnlyList<FolderDescriptor>)
+            Manifest.Folders.ToArray());
 
     public IReadOnlyList<TagDescriptor> Tags =>
-        Manifest.Tags;
+        ReadState(() =>
+            (IReadOnlyList<TagDescriptor>)
+            Manifest.Tags.ToArray());
 
     public IReadOnlyList<EntryDescriptor> Entries =>
-        Manifest.Entries;
+        ReadState(() =>
+            (IReadOnlyList<EntryDescriptor>)
+            Manifest.Entries.ToArray());
+
+    public IReadOnlyCollection<Guid>
+        EntriesPendingDeletion =>
+        ReadState(() =>
+            (IReadOnlyCollection<Guid>)
+            _entriesPendingDeletion.ToArray());
 
     public static async Task<VaultSession> CreateAsync(
         string vaultDirectoryPath,
@@ -139,9 +180,10 @@ public sealed class VaultSession : IDisposable
                     kdfParameters);
 
             await vaultFileStore.WriteAsync(
-                normalizedPath,
-                vaultFile,
-                cancellationToken);
+                    normalizedPath,
+                    vaultFile,
+                    cancellationToken)
+                .ConfigureAwait(false);
 
             return new VaultSession(
                 normalizedPath,
@@ -181,8 +223,9 @@ public sealed class VaultSession : IDisposable
 
         VaultFile vaultFile =
             await vaultFileStore.ReadAsync(
-                normalizedPath,
-                cancellationToken);
+                    normalizedPath,
+                    cancellationToken)
+                .ConfigureAwait(false);
 
         byte[] vaultRootKey =
             new byte[VaultRootKeyGenerator.KeySize];
@@ -215,24 +258,26 @@ public sealed class VaultSession : IDisposable
     }
 
     public async Task ChangePasswordAsync(
-    string newPassword,
-    Argon2idParameters? newKdfParameters = null,
-    CancellationToken cancellationToken = default)
+        string newPassword,
+        Argon2idParameters? newKdfParameters = null,
+        CancellationToken cancellationToken = default)
     {
-        EnsureCanChangeState();
-        ValidatePassword(newPassword);
-
-        if (HasUnsavedChanges)
-        {
-            throw new InvalidOperationException(
-                "Save or discard all changes before changing " +
-                "the password.");
-        }
-
-        _saveInProgress = true;
+        await _operationGate.WaitAsync(
+                cancellationToken)
+            .ConfigureAwait(false);
 
         try
         {
+            EnsureNotDisposed();
+            ValidatePassword(newPassword);
+
+            if (HasUnsavedChangesCore())
+            {
+                throw new InvalidOperationException(
+                    "Save or discard all changes before changing " +
+                    "the password.");
+            }
+
             VaultFile updatedVaultFile =
                 _vaultFileCodec.Create(
                     Manifest,
@@ -241,19 +286,20 @@ public sealed class VaultSession : IDisposable
                     newKdfParameters);
 
             await _vaultFileStore.WriteAsync(
-                VaultDirectoryPath,
-                updatedVaultFile,
-                cancellationToken);
+                    VaultDirectoryPath,
+                    updatedVaultFile,
+                    cancellationToken)
+                .ConfigureAwait(false);
 
-            // Update the in-memory representation only after
-            // the replacement vault file was written successfully.
             _vaultFile = updatedVaultFile;
         }
         finally
         {
-            _saveInProgress = false;
+            _operationGate.Release();
         }
     }
+
+    // Entry content operations
 
     public VaultEntry CreateEntry(
         string name,
@@ -261,272 +307,545 @@ public sealed class VaultSession : IDisposable
         IEnumerable<Guid>? tagIds = null,
         IEnumerable<EntryField>? fields = null)
     {
-        EnsureCanChangeState();
-
-        if (_entryDirty)
+        return MutateState(() =>
         {
-            throw new InvalidOperationException(
-                "The currently open entry must be saved " +
-                "before creating another entry.");
-        }
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                throw new ArgumentException(
+                    "The entry name cannot be empty.",
+                    nameof(name));
+            }
 
-        if (string.IsNullOrWhiteSpace(name))
-        {
-            throw new ArgumentException(
-                "The entry name cannot be empty.",
-                nameof(name));
-        }
+            Guid entryId = Guid.NewGuid();
 
-        Guid entryId = Guid.NewGuid();
+            List<Guid> assignedTagIds =
+                tagIds?.ToList() ?? [];
 
-        List<Guid> assignedTagIds =
-            tagIds?.ToList() ?? [];
+            List<EntryField> entryFields =
+                fields?.ToList() ?? [];
 
-        List<EntryField> entryFields =
-            fields?.ToList() ?? [];
+            DateTimeOffset createdUtc =
+                DateTimeOffset.UtcNow;
 
-        DateTimeOffset createdUtc =
-            DateTimeOffset.UtcNow;
+            EntryDescriptor descriptor = new(
+                entryId,
+                name,
+                folderId,
+                assignedTagIds,
+                revision: 0,
+                createdUtc,
+                modifiedUtc: createdUtc);
 
-        EntryDescriptor descriptor = new(
-            entryId,
-            name,
-            folderId,
-            assignedTagIds,
-            revision: 0,
-            createdUtc,
-            modifiedUtc: createdUtc);
+            VaultEntry entry = new(
+                StorageSchemaVersions.CurrentEntry,
+                entryId,
+                revision: 0,
+                entryFields);
 
-        // This validates the folder, tags, duplicate ID,
-        // and duplicate tag assignments.
-        Manifest.AddEntryDescriptor(
-            descriptor);
+            // Validates the folder, tags, duplicate ID,
+            // and duplicate tag assignments.
+            Manifest.AddEntryDescriptor(
+                descriptor);
 
-        VaultEntry entry = new(
-            StorageSchemaVersions.CurrentEntry,
-            entryId,
-            revision: 0,
-            entryFields);
+            _pendingEntryChanges.Add(
+                entryId,
+                new PendingEntryChange(
+                    entry,
+                    EntryChangeKind.New));
 
-        OpenEntry = entry;
+            RecordManifestChange(
+                rebuildIndex: true);
 
-        _entryDirty = true;
-        RecordManifestChange(rebuildIndex: true);
-
-        return entry;
+            return entry;
+        });
     }
 
-    public async Task<VaultEntry> OpenEntryAsync(
+    public async Task<VaultEntry> GetEntryAsync(
         Guid entryId,
         CancellationToken cancellationToken = default)
     {
-        EnsureCanChangeState();
+        await _operationGate.WaitAsync(
+                cancellationToken)
+            .ConfigureAwait(false);
 
-        if (entryId == Guid.Empty)
+        try
         {
-            throw new ArgumentException(
-                "The entry ID cannot be empty.",
-                nameof(entryId));
-        }
+            EnsureNotDisposed();
+            ValidateEntryId(entryId);
 
-        if (OpenEntry is not null &&
-            OpenEntry.EntryId == entryId)
+            EntryDescriptor descriptor =
+                GetEntryDescriptor(entryId);
+
+            if (_pendingEntryChanges.TryGetValue(
+                    entryId,
+                    out PendingEntryChange? pendingChange))
+            {
+                return pendingChange.WorkingEntry;
+            }
+
+            EntryFile entryFile =
+                await _entryFileStore.ReadAsync(
+                        VaultDirectoryPath,
+                        entryId,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+
+            if (entryFile.VaultId != Manifest.VaultId)
+            {
+                throw new InvalidDataException(
+                    $"Entry '{entryId}' belongs to a different vault.");
+            }
+
+            VaultEntry entry =
+                _entryFileCodec.Open(
+                    entryFile,
+                    _vaultRootKey);
+
+            if (entry.Revision != descriptor.Revision)
+            {
+                throw new InvalidDataException(
+                    $"Entry '{entryId}' has revision " +
+                    $"'{entry.Revision}', but the manifest expects " +
+                    $"revision '{descriptor.Revision}'.");
+            }
+
+            return entry;
+        }
+        finally
         {
-            return OpenEntry;
+            _operationGate.Release();
         }
-
-        if (_entryDirty)
-        {
-            throw new InvalidOperationException(
-                "The currently open entry contains unsaved changes.");
-        }
-
-        EntryDescriptor descriptor =
-            GetEntryDescriptor(entryId);
-
-        EntryFile entryFile =
-            await _entryFileStore.ReadAsync(
-                VaultDirectoryPath,
-                entryId,
-                cancellationToken);
-
-        if (entryFile.VaultId != Manifest.VaultId)
-        {
-            throw new InvalidDataException(
-                $"Entry '{entryId}' belongs to a different vault.");
-        }
-
-        VaultEntry entry =
-            _entryFileCodec.Open(
-                entryFile,
-                _vaultRootKey);
-
-        if (entry.Revision != descriptor.Revision)
-        {
-            throw new InvalidDataException(
-                $"Entry '{entryId}' has revision " +
-                $"'{entry.Revision}', but the manifest expects " +
-                $"revision '{descriptor.Revision}'.");
-        }
-
-        OpenEntry = entry;
-        _entryDirty = false;
-
-        return entry;
     }
 
-    public void ReplaceOpenEntry(
+    public void ReplaceEntry(
         VaultEntry modifiedEntry)
     {
-        EnsureCanChangeState();
-        ArgumentNullException.ThrowIfNull(modifiedEntry);
-
-        if (OpenEntry is null)
+        MutateState(() =>
         {
-            throw new InvalidOperationException(
-                "No entry is currently open.");
-        }
+            ArgumentNullException.ThrowIfNull(
+                modifiedEntry);
 
-        if (modifiedEntry.EntryId !=
-            OpenEntry.EntryId)
-        {
-            throw new ArgumentException(
-                "The modified entry has a different entry ID.",
-                nameof(modifiedEntry));
-        }
+            EntryDescriptor descriptor =
+                GetEntryDescriptor(
+                    modifiedEntry.EntryId);
 
-        if (modifiedEntry.SchemaVersion !=
-            OpenEntry.SchemaVersion)
-        {
-            throw new ArgumentException(
-                "The modified entry has a different schema version.",
-                nameof(modifiedEntry));
-        }
+            EnsureEntryIsNotPendingDeletion(
+                modifiedEntry.EntryId);
 
-        if (modifiedEntry.Revision !=
-            OpenEntry.Revision)
-        {
-            throw new ArgumentException(
-                "The entry revision must not be incremented " +
-                "by the caller. VaultSession increments it " +
-                "during SaveAsync.",
-                nameof(modifiedEntry));
-        }
+            if (modifiedEntry.SchemaVersion !=
+                StorageSchemaVersions.CurrentEntry)
+            {
+                throw new ArgumentException(
+                    "The modified entry has an unsupported " +
+                    "schema version.",
+                    nameof(modifiedEntry));
+            }
 
-        OpenEntry = modifiedEntry;
-        _entryDirty = true;
+            if (modifiedEntry.Revision !=
+                descriptor.Revision)
+            {
+                throw new ArgumentException(
+                    "The entry revision must match the current " +
+                    "descriptor revision. VaultSession increments " +
+                    "it during SaveAsync.",
+                    nameof(modifiedEntry));
+            }
+
+            if (_pendingEntryChanges.TryGetValue(
+                    modifiedEntry.EntryId,
+                    out PendingEntryChange? pendingChange))
+            {
+                pendingChange.ReplaceWorkingEntry(
+                    modifiedEntry);
+            }
+            else
+            {
+                _pendingEntryChanges.Add(
+                    modifiedEntry.EntryId,
+                    new PendingEntryChange(
+                        modifiedEntry,
+                        EntryChangeKind.Modified));
+            }
+        });
     }
 
-    public void MarkEntryDirty()
+    public void DiscardEntryChanges(
+        Guid entryId)
     {
-        EnsureCanChangeState();
-
-        if (OpenEntry is null)
+        MutateState(() =>
         {
-            throw new InvalidOperationException(
-                "No entry is currently open.");
-        }
+            ValidateEntryId(entryId);
 
-        _entryDirty = true;
+            if (!_pendingEntryChanges.TryGetValue(
+                    entryId,
+                    out PendingEntryChange? pendingChange))
+            {
+                throw new InvalidOperationException(
+                    $"Entry '{entryId}' has no unsaved " +
+                    "content changes.");
+            }
+
+            if (pendingChange.Kind ==
+                EntryChangeKind.New)
+            {
+                Manifest.RemoveEntryDescriptor(
+                    entryId);
+
+                _entriesPendingDeletion.Remove(
+                    entryId);
+
+                RecordManifestChange(
+                    rebuildIndex: true);
+            }
+
+            // Modified entries fall back to their persisted
+            // encrypted file. Pending deletion remains staged.
+            _pendingEntryChanges.Remove(
+                entryId);
+        });
     }
 
-    public void MarkManifestDirty()
+    // Staged entry deletion
+
+    public void MarkEntryForDeletion(
+        Guid entryId)
     {
-        EnsureCanChangeState();
-
-        _manifestDirty = true;
-
-        // Manifest operations may have changed folder or tag
-        // mappings, so rebuild the runtime lookup.
-        RebuildIndex();
-    }
-
-    public void CloseEntry()
-    {
-        EnsureCanChangeState();
-
-        if (_entryDirty)
+        MutateState(() =>
         {
-            throw new InvalidOperationException(
-                "The currently open entry contains unsaved changes.");
-        }
+            ValidateEntryId(entryId);
+            GetEntryDescriptor(entryId);
 
-        OpenEntry = null;
+            _entriesPendingDeletion.Add(
+                entryId);
+        });
     }
+
+    public void UndoEntryDeletion(
+        Guid entryId)
+    {
+        MutateState(() =>
+        {
+            ValidateEntryId(entryId);
+            GetEntryDescriptor(entryId);
+
+            if (!_entriesPendingDeletion.Remove(
+                    entryId))
+            {
+                throw new InvalidOperationException(
+                    $"Entry '{entryId}' is not marked " +
+                    "for deletion.");
+            }
+        });
+    }
+
+    public EntrySessionState GetEntrySessionState(
+        Guid entryId)
+    {
+        return ReadState(() =>
+        {
+            ValidateEntryId(entryId);
+            GetEntryDescriptor(entryId);
+
+            EntryChangeKind changeKind =
+                _pendingEntryChanges.TryGetValue(
+                    entryId,
+                    out PendingEntryChange? pendingChange)
+                    ? pendingChange.Kind
+                    : EntryChangeKind.None;
+
+            return new EntrySessionState(
+                changeKind,
+                _entriesPendingDeletion.Contains(
+                    entryId));
+        });
+    }
+
+    // Folder operations
+
+    public FolderDescriptor CreateFolder(
+        string name,
+        Guid? parentFolderId = null)
+    {
+        return MutateState(() =>
+        {
+            FolderDescriptor folder =
+                Manifest.CreateFolder(
+                    name,
+                    parentFolderId);
+
+            RecordManifestChange(
+                rebuildIndex: false);
+
+            return folder;
+        });
+    }
+
+    public void RenameFolder(
+        Guid folderId,
+        string newName)
+    {
+        MutateState(() =>
+        {
+            Manifest.RenameFolder(
+                folderId,
+                newName);
+
+            RecordManifestChange(
+                rebuildIndex: false);
+        });
+    }
+
+    public void MoveFolder(
+        Guid folderId,
+        Guid? newParentFolderId)
+    {
+        MutateState(() =>
+        {
+            Manifest.MoveFolder(
+                folderId,
+                newParentFolderId);
+
+            // The index maps entries to their direct folder.
+            // A folder-parent change does not affect that mapping.
+            RecordManifestChange(
+                rebuildIndex: false);
+        });
+    }
+
+    public void DeleteFolder(
+        Guid folderId)
+    {
+        MutateState(() =>
+        {
+            Manifest.DeleteFolder(
+                folderId);
+
+            // Entries in the deleted folder are moved
+            // to its parent.
+            RecordManifestChange(
+                rebuildIndex: true);
+        });
+    }
+
+    // Tag operations
+
+    public TagDescriptor CreateTag(
+        string name,
+        string? color = null)
+    {
+        return MutateState(() =>
+        {
+            TagDescriptor tag =
+                Manifest.CreateTag(
+                    name,
+                    color);
+
+            RecordManifestChange(
+                rebuildIndex: false);
+
+            return tag;
+        });
+    }
+
+    public void RenameTag(
+        Guid tagId,
+        string newName)
+    {
+        MutateState(() =>
+        {
+            Manifest.RenameTag(
+                tagId,
+                newName);
+
+            RecordManifestChange(
+                rebuildIndex: false);
+        });
+    }
+
+    public void SetTagColor(
+        Guid tagId,
+        string? color)
+    {
+        MutateState(() =>
+        {
+            Manifest.SetTagColor(
+                tagId,
+                color);
+
+            RecordManifestChange(
+                rebuildIndex: false);
+        });
+    }
+
+    public void DeleteTag(
+        Guid tagId)
+    {
+        MutateState(() =>
+        {
+            Manifest.DeleteTag(
+                tagId);
+
+            // DeleteTag removes the tag from every entry.
+            RecordManifestChange(
+                rebuildIndex: true);
+        });
+    }
+
+    // Entry metadata operations
+
+    public void RenameEntry(
+        Guid entryId,
+        string newName)
+    {
+        MutateState(() =>
+        {
+            EnsureEntryIsNotPendingDeletion(
+                entryId);
+
+            Manifest.RenameEntry(
+                entryId,
+                newName);
+
+            RecordManifestChange(
+                rebuildIndex: false);
+        });
+    }
+
+    public void MoveEntry(
+        Guid entryId,
+        Guid? destinationFolderId)
+    {
+        MutateState(() =>
+        {
+            EnsureEntryIsNotPendingDeletion(
+                entryId);
+
+            Manifest.MoveEntry(
+                entryId,
+                destinationFolderId);
+
+            RecordManifestChange(
+                rebuildIndex: true);
+        });
+    }
+
+    public void AddTagToEntry(
+        Guid entryId,
+        Guid tagId)
+    {
+        MutateState(() =>
+        {
+            EnsureEntryIsNotPendingDeletion(
+                entryId);
+
+            Manifest.AddTagToEntry(
+                entryId,
+                tagId);
+
+            RecordManifestChange(
+                rebuildIndex: true);
+        });
+    }
+
+    public void RemoveTagFromEntry(
+        Guid entryId,
+        Guid tagId)
+    {
+        MutateState(() =>
+        {
+            EnsureEntryIsNotPendingDeletion(
+                entryId);
+
+            Manifest.RemoveTagFromEntry(
+                entryId,
+                tagId);
+
+            RecordManifestChange(
+                rebuildIndex: true);
+        });
+    }
+
+    // Persistence
 
     public async Task SaveAsync(
         CancellationToken cancellationToken = default)
     {
-        EnsureNotDisposed();
-
-        if (_saveInProgress)
-        {
-            throw new InvalidOperationException(
-                "A vault save is already in progress.");
-        }
-
-        if (!HasUnsavedChanges)
-        {
-            return;
-        }
-
-        _saveInProgress = true;
+        await _operationGate.WaitAsync(
+                cancellationToken)
+            .ConfigureAwait(false);
 
         try
         {
-            // Write the entry first. If this succeeds but the
-            // manifest write fails, another SaveAsync call will
-            // retry only the manifest portion.
-            if (_entryDirty)
+            EnsureNotDisposed();
+
+            if (!HasUnsavedChangesCore())
             {
-                await SaveOpenEntryAsync(
-                    cancellationToken);
+                return;
             }
 
-            if (_manifestDirty)
+            await SavePendingEntryFilesAsync(
+                    cancellationToken)
+                .ConfigureAwait(false);
+
+            if (RequiresManifestWriteCore())
             {
                 await SaveManifestAsync(
-                    cancellationToken);
+                        cancellationToken)
+                    .ConfigureAwait(false);
             }
+
+            DeletePendingEntryFiles(
+                cancellationToken);
         }
         finally
         {
-            _saveInProgress = false;
+            _operationGate.Release();
         }
     }
 
-    public void Dispose()
+    private async Task SavePendingEntryFilesAsync(
+        CancellationToken cancellationToken)
     {
-        if (_disposed)
+        PendingEntryChange[] changes =
+            _pendingEntryChanges
+                .Values
+                .ToArray();
+
+        foreach (PendingEntryChange change in changes)
         {
-            return;
+            Guid entryId =
+                change.WorkingEntry.EntryId;
+
+            if (change.EntryFileWritten ||
+                _entriesPendingDeletion.Contains(entryId))
+            {
+                continue;
+            }
+
+            await SavePendingEntryFileAsync(
+                    change,
+                    cancellationToken)
+                .ConfigureAwait(false);
         }
-
-        _disposed = true;
-
-        CryptographicOperations.ZeroMemory(
-            _vaultRootKey);
-
-        OpenEntry = null;
     }
 
-    private async Task SaveOpenEntryAsync(
+    private async Task SavePendingEntryFileAsync(
+        PendingEntryChange pendingChange,
         CancellationToken cancellationToken)
     {
         VaultEntry entry =
-            OpenEntry
-            ?? throw new InvalidOperationException(
-                "No entry is currently open.");
+            pendingChange.WorkingEntry;
 
         EntryDescriptor descriptor =
-            GetEntryDescriptor(entry.EntryId);
+            GetEntryDescriptor(
+                entry.EntryId);
 
         if (entry.Revision != descriptor.Revision)
         {
             throw new InvalidOperationException(
-                $"The open entry has revision '{entry.Revision}', " +
-                $"but its descriptor has revision " +
-                $"'{descriptor.Revision}'.");
+                $"Entry '{entry.EntryId}' has revision " +
+                $"'{entry.Revision}', but its descriptor has " +
+                $"revision '{descriptor.Revision}'.");
         }
 
         long committedRevision =
@@ -547,8 +866,6 @@ public sealed class VaultSession : IDisposable
             committedRevision,
             entry.Fields);
 
-        // Encryption and validation happen before touching
-        // the existing entry file.
         EntryFile entryFile =
             _entryFileCodec.Create(
                 Manifest.VaultId,
@@ -556,87 +873,282 @@ public sealed class VaultSession : IDisposable
                 _vaultRootKey);
 
         await _entryFileStore.WriteAsync(
-            VaultDirectoryPath,
-            entryFile,
-            cancellationToken);
+                VaultDirectoryPath,
+                entryFile,
+                cancellationToken)
+            .ConfigureAwait(false);
 
-        // The entry file is now committed. Update the in-memory
-        // descriptor so the following manifest save records the
-        // same revision.
+        // Only advance the live descriptor after the complete
+        // encrypted entry file was replaced successfully.
         Manifest.RecordEntryCommit(
             entry.EntryId,
             committedRevision,
             modifiedUtc);
 
-        OpenEntry = committedEntry;
+        pendingChange.RecordEntryFileWrite(
+            committedEntry);
 
-        _entryDirty = false;
+        // The new revision now needs to be recorded
+        // in the persisted manifest.
         _manifestDirty = true;
-
-        RebuildIndex();
     }
 
     private async Task SaveManifestAsync(
         CancellationToken cancellationToken)
     {
+        foreach (KeyValuePair<Guid, PendingEntryChange> pair
+                 in _pendingEntryChanges)
+        {
+            if (_entriesPendingDeletion.Contains(pair.Key))
+            {
+                continue;
+            }
+
+            if (!pair.Value.EntryFileWritten)
+            {
+                throw new InvalidOperationException(
+                    $"Entry '{pair.Key}' has unsaved contents " +
+                    "which were not written before the manifest save.");
+            }
+        }
+
+        Guid[] deletedEntryIds =
+            _entriesPendingDeletion.ToArray();
+
+        HashSet<Guid> deletedEntryIdSet =
+            deletedEntryIds.ToHashSet();
+
+        EntryDescriptor[] entriesToPersist =
+            Manifest.Entries
+                .Where(entry =>
+                    !deletedEntryIdSet.Contains(
+                        entry.EntryId))
+                .ToArray();
+
         long newGeneration =
             checked(Manifest.Generation + 1);
 
-        // Use a temporary domain snapshot containing the generation
-        // that will be persisted. The live manifest is updated only
-        // after the vault file has been written successfully.
-        VaultManifest manifestSnapshot = new(
+        VaultManifest manifestToPersist = new(
             Manifest.SchemaVersion,
             Manifest.VaultId,
             newGeneration,
             Manifest.Folders,
             Manifest.Tags,
-            Manifest.Entries);
+            entriesToPersist);
 
         VaultFile updatedVaultFile =
             _vaultFileCodec.UpdateManifest(
                 _vaultFile,
-                manifestSnapshot,
+                manifestToPersist,
                 _vaultRootKey);
 
         await _vaultFileStore.WriteAsync(
-            VaultDirectoryPath,
-            updatedVaultFile,
-            cancellationToken);
+                VaultDirectoryPath,
+                updatedVaultFile,
+                cancellationToken)
+            .ConfigureAwait(false);
 
-        Manifest.RecordSuccessfulSave(
-            newGeneration);
+        // The replacement manifest is now committed. From here,
 
+        foreach (Guid entryId in deletedEntryIds)
+        {
+            EntryDescriptor descriptor =
+                GetEntryDescriptor(entryId);
+
+            // Revision zero means the new entry never had
+            // an encrypted entry file successfully committed.
+            if (descriptor.Revision > 0)
+            {
+                _orphanedEntryFilesPendingCleanup.Add(
+                    entryId);
+            }
+        }
+
+        // update the live session to match the persisted snapshot.
+
+        Manifest = manifestToPersist;
         _vaultFile = updatedVaultFile;
         _manifestDirty = false;
 
+        _pendingEntryChanges.Clear();
+        _entriesPendingDeletion.Clear();
+
         RebuildIndex();
+    }
+
+    private void DeletePendingEntryFiles(
+        CancellationToken cancellationToken)
+    {
+        foreach (Guid entryId in
+                 _orphanedEntryFilesPendingCleanup.ToArray())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            _entryFileStore.Delete(
+                VaultDirectoryPath,
+                entryId);
+
+            // Remove only after physical deletion succeeds.
+            _orphanedEntryFilesPendingCleanup.Remove(
+                entryId);
+        }
+    }
+
+    // State and synchronization helpers
+
+    private bool IsManifestDirtyCore()
+    {
+        return _manifestDirty ||
+               _entriesPendingDeletion.Count > 0;
+    }
+
+    private bool RequiresManifestWriteCore()
+    {
+        return IsManifestDirtyCore();
+    }
+
+    private bool RequiresSaveRetryCore()
+    {
+        return _pendingEntryChanges
+            .Values
+            .Any(change =>
+                change.EntryFileWritten);
+    }
+
+    private bool HasUnsavedChangesCore()
+    {
+        return IsManifestDirtyCore() ||
+               _pendingEntryChanges.Count > 0 ||
+               _entriesPendingDeletion.Count > 0 ||
+               _orphanedEntryFilesPendingCleanup.Count > 0;
+    }
+
+    private T ReadState<T>(
+        Func<T> readOperation)
+    {
+        ArgumentNullException.ThrowIfNull(
+            readOperation);
+
+        EnterSynchronousOperation();
+
+        try
+        {
+            return readOperation();
+        }
+        finally
+        {
+            _operationGate.Release();
+        }
+    }
+
+    private T MutateState<T>(
+        Func<T> mutation)
+    {
+        ArgumentNullException.ThrowIfNull(
+            mutation);
+
+        EnterSynchronousOperation();
+
+        try
+        {
+            EnsureStateCanBeMutated();
+            return mutation();
+        }
+        finally
+        {
+            _operationGate.Release();
+        }
+    }
+
+    private void MutateState(
+        Action mutation)
+    {
+        ArgumentNullException.ThrowIfNull(
+            mutation);
+
+        EnterSynchronousOperation();
+
+        try
+        {
+            EnsureStateCanBeMutated();
+            mutation();
+        }
+        finally
+        {
+            _operationGate.Release();
+        }
+    }
+
+    private void EnterSynchronousOperation()
+    {
+        if (!_operationGate.Wait(0))
+        {
+            throw new InvalidOperationException(
+                "Another vault operation is already in progress.");
+        }
+
+        try
+        {
+            EnsureNotDisposed();
+        }
+        catch
+        {
+            _operationGate.Release();
+            throw;
+        }
+    }
+
+    private void EnsureStateCanBeMutated()
+    {
+        if (RequiresSaveRetryCore())
+        {
+            throw new InvalidOperationException(
+                "A previous save wrote one or more entry files " +
+                "but did not successfully write the manifest. " +
+                "Call SaveAsync again before making more changes.");
+        }
+    }
+
+    private void EnsureEntryIsNotPendingDeletion(
+        Guid entryId)
+    {
+        ValidateEntryId(entryId);
+        GetEntryDescriptor(entryId);
+
+        if (_entriesPendingDeletion.Contains(
+                entryId))
+        {
+            throw new InvalidOperationException(
+                $"Entry '{entryId}' is marked for deletion. " +
+                "Undo its deletion before modifying it.");
+        }
     }
 
     private EntryDescriptor GetEntryDescriptor(
         Guid entryId)
     {
         return Manifest.Entries.FirstOrDefault(
-                   entry => entry.EntryId == entryId)
+                   entry =>
+                       entry.EntryId == entryId)
                ?? throw new KeyNotFoundException(
                    $"Entry '{entryId}' does not exist.");
     }
 
-    private void RebuildIndex()
+    private void RecordManifestChange(
+        bool rebuildIndex)
     {
-        Index = VaultIndex.Build(
-            Manifest);
+        _manifestDirty = true;
+
+        if (rebuildIndex)
+        {
+            RebuildIndex();
+        }
     }
 
-    private void EnsureCanChangeState()
+    private void RebuildIndex()
     {
-        EnsureNotDisposed();
-
-        if (_saveInProgress)
-        {
-            throw new InvalidOperationException(
-                "The vault cannot be modified while it is saving.");
-        }
+        _index = VaultIndex.Build(
+            Manifest);
     }
 
     private void EnsureNotDisposed()
@@ -644,6 +1156,17 @@ public sealed class VaultSession : IDisposable
         ObjectDisposedException.ThrowIf(
             _disposed,
             this);
+    }
+
+    private static void ValidateEntryId(
+        Guid entryId)
+    {
+        if (entryId == Guid.Empty)
+        {
+            throw new ArgumentException(
+                "The entry ID cannot be empty.",
+                nameof(entryId));
+        }
     }
 
     private static string NormalizeVaultDirectoryPath(
@@ -664,7 +1187,8 @@ public sealed class VaultSession : IDisposable
     private static void ValidatePassword(
         string password)
     {
-        ArgumentNullException.ThrowIfNull(password);
+        ArgumentNullException.ThrowIfNull(
+            password);
 
         if (password.Length == 0)
         {
@@ -674,183 +1198,91 @@ public sealed class VaultSession : IDisposable
         }
     }
 
-    // Folder operations
-
-    public FolderDescriptor CreateFolder(
-        string name,
-        Guid? parentFolderId = null)
+    public void Dispose()
     {
-        EnsureCanChangeState();
+        // Every await performed while holding the operation gate
+        // uses ConfigureAwait(false), so waiting here does not
+        // depend on returning to a blocked UI synchronization context.
+        _operationGate.Wait();
 
-        FolderDescriptor folder =
-            Manifest.CreateFolder(
-                name,
-                parentFolderId);
-
-        RecordManifestChange(rebuildIndex: false);
-
-        return folder;
-    }
-
-    public void RenameFolder(
-        Guid folderId,
-        string newName)
-    {
-        EnsureCanChangeState();
-
-        Manifest.RenameFolder(
-            folderId,
-            newName);
-
-        RecordManifestChange(rebuildIndex: false);
-    }
-
-    public void MoveFolder(
-        Guid folderId,
-        Guid? newParentFolderId)
-    {
-        EnsureCanChangeState();
-
-        Manifest.MoveFolder(
-            folderId,
-            newParentFolderId);
-
-        // VaultIndex maps entries to their direct folders.
-        // Changing a folder's parent does not change those mappings.
-        RecordManifestChange(rebuildIndex: false);
-    }
-
-    public void DeleteFolder(Guid folderId)
-    {
-        EnsureCanChangeState();
-
-        Manifest.DeleteFolder(folderId);
-
-        // Entries inside the deleted folder are moved to its parent.
-        RecordManifestChange(rebuildIndex: true);
-    }
-
-
-    // Tag operations
-
-    public TagDescriptor CreateTag(
-        string name,
-        string? color = null)
-    {
-        EnsureCanChangeState();
-
-        TagDescriptor tag =
-            Manifest.CreateTag(
-                name,
-                color);
-
-        RecordManifestChange(rebuildIndex: false);
-
-        return tag;
-    }
-
-    public void RenameTag(
-        Guid tagId,
-        string newName)
-    {
-        EnsureCanChangeState();
-
-        Manifest.RenameTag(
-            tagId,
-            newName);
-
-        RecordManifestChange(rebuildIndex: false);
-    }
-
-    public void SetTagColor(
-        Guid tagId,
-        string? color)
-    {
-        EnsureCanChangeState();
-
-        Manifest.SetTagColor(
-            tagId,
-            color);
-
-        RecordManifestChange(rebuildIndex: false);
-    }
-
-    public void DeleteTag(Guid tagId)
-    {
-        EnsureCanChangeState();
-
-        Manifest.DeleteTag(tagId);
-
-        // DeleteTag also removes the tag from every entry.
-        RecordManifestChange(rebuildIndex: true);
-    }
-
-
-    // Entry metadata operations
-
-    public void RenameEntry(
-        Guid entryId,
-        string newName)
-    {
-        EnsureCanChangeState();
-
-        Manifest.RenameEntry(
-            entryId,
-            newName);
-
-        RecordManifestChange(rebuildIndex: false);
-    }
-
-    public void MoveEntry(
-        Guid entryId,
-        Guid? destinationFolderId)
-    {
-        EnsureCanChangeState();
-
-        Manifest.MoveEntry(
-            entryId,
-            destinationFolderId);
-
-        RecordManifestChange(rebuildIndex: true);
-    }
-
-    public void AddTagToEntry(
-        Guid entryId,
-        Guid tagId)
-    {
-        EnsureCanChangeState();
-
-        Manifest.AddTagToEntry(
-            entryId,
-            tagId);
-
-        RecordManifestChange(rebuildIndex: true);
-    }
-
-    public void RemoveTagFromEntry(
-        Guid entryId,
-        Guid tagId)
-    {
-        EnsureCanChangeState();
-
-        Manifest.RemoveTagFromEntry(
-            entryId,
-            tagId);
-
-        RecordManifestChange(rebuildIndex: true);
-    }
-
-
-    // Dirty-state helper
-
-    private void RecordManifestChange(
-        bool rebuildIndex)
-    {
-        _manifestDirty = true;
-
-        if (rebuildIndex)
+        try
         {
-            RebuildIndex();
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+
+            CryptographicOperations.ZeroMemory(
+                _vaultRootKey);
+
+            _pendingEntryChanges.Clear();
+            _entriesPendingDeletion.Clear();
+            _orphanedEntryFilesPendingCleanup.Clear();
+        }
+        finally
+        {
+            _operationGate.Release();
+        }
+    }
+
+    private sealed class PendingEntryChange
+    {
+        public VaultEntry WorkingEntry { get; private set; }
+
+        public EntryChangeKind Kind { get; }
+
+        // True means the entry file was replaced successfully
+        // and the session is waiting for the manifest write.
+        public bool EntryFileWritten { get; private set; }
+
+        public PendingEntryChange(
+            VaultEntry workingEntry,
+            EntryChangeKind kind)
+        {
+            ArgumentNullException.ThrowIfNull(
+                workingEntry);
+
+            if (kind is not
+                (EntryChangeKind.New or
+                 EntryChangeKind.Modified))
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(kind),
+                    kind,
+                    "A pending entry must be new or modified.");
+            }
+
+            WorkingEntry = workingEntry;
+            Kind = kind;
+        }
+
+        public void ReplaceWorkingEntry(
+            VaultEntry workingEntry)
+        {
+            ArgumentNullException.ThrowIfNull(
+                workingEntry);
+
+            if (EntryFileWritten)
+            {
+                throw new InvalidOperationException(
+                    "An entry whose file has already been written " +
+                    "cannot be modified until the manifest save " +
+                    "is retried.");
+            }
+
+            WorkingEntry = workingEntry;
+        }
+
+        public void RecordEntryFileWrite(
+            VaultEntry committedEntry)
+        {
+            ArgumentNullException.ThrowIfNull(
+                committedEntry);
+
+            WorkingEntry = committedEntry;
+            EntryFileWritten = true;
         }
     }
 }

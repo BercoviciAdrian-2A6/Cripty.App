@@ -113,6 +113,30 @@ public sealed class EntryFileStore
         return entryFile;
     }
 
+    public void Delete(
+    string vaultDirectoryPath,
+    Guid entryId)
+    {
+        ValidateVaultDirectoryPath(
+            vaultDirectoryPath);
+
+        if (entryId == Guid.Empty)
+        {
+            throw new ArgumentException(
+                "The entry ID cannot be empty.",
+                nameof(entryId));
+        }
+
+        string entryFilePath =
+            GetEntryFilePath(
+                vaultDirectoryPath,
+                entryId);
+
+        // File.Delete is intentionally idempotent. It does
+        // nothing when the entry file is already absent.
+        File.Delete(entryFilePath);
+    }
+
     private static string GetEntryFilePath(
         string vaultDirectoryPath,
         Guid entryId)

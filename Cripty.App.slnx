@@ -1,4 +1,5 @@
 <Solution>
+  <Project Path="Cripty.Application.Tests/Cripty.Application.Tests.csproj" Id="a1d1ebef-fba4-4211-9c07-7897ccd545eb" />
   <Project Path="Cripty.Application/Cripty.Application.csproj" />
   <Project Path="Cripty.Core/Cripty.Core.csproj" />
   <Project Path="Cripty.Cryptography.Tests/Cripty.Cryptography.Tests.csproj" />

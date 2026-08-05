@@ -6,7 +6,7 @@ using Cripty.Views;
 
 namespace Cripty;
 
-public partial class App : Application
+public partial class App : Avalonia.Application
 {
     public override void Initialize()
     {
@@ -15,11 +15,19 @@ public partial class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
-        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        if (ApplicationLifetime is
+            IClassicDesktopStyleApplicationLifetime desktop)
         {
+            MainViewModel mainViewModel = new();
+
             desktop.MainWindow = new MainWindow
             {
-                DataContext = new MainViewModel(),
+                DataContext = mainViewModel
+            };
+
+            desktop.Exit += (_, _) =>
+            {
+                mainViewModel.Dispose();
             };
         }
 

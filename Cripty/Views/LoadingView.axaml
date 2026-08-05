@@ -1,0 +1,79 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Cripty.ViewModels"
+             x:Class="Cripty.Views.LoadingView"
+             x:DataType="vm:LoadingViewModel">
+
+    <Grid Background="{StaticResource CriptyBackgroundBrush}"
+          RowDefinitions="Auto,*">
+
+        <Border Grid.Row="0"
+                Padding="48,24"
+                BorderBrush="{StaticResource CriptyBorderBrush}"
+                BorderThickness="0,0,0,1">
+
+            <StackPanel Spacing="2">
+                <TextBlock Text="CRIPTY"
+                           FontSize="24"
+                           FontWeight="Bold"
+                           LetterSpacing="4"
+                           Foreground="{StaticResource CriptyAccentBrush}" />
+
+                <TextBlock Text="ENCRYPTED VAULT TERMINAL"
+                           FontSize="11"
+                           LetterSpacing="2"
+                           Foreground="{StaticResource CriptyTextMutedBrush}" />
+            </StackPanel>
+        </Border>
+
+        <Border Grid.Row="1"
+                Width="520"
+                Padding="36"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Background="{StaticResource CriptySurfaceBrush}"
+                BorderBrush="{StaticResource CriptyBorderBrush}"
+                BorderThickness="1"
+                CornerRadius="5">
+
+            <StackPanel Spacing="16">
+                <Border Width="54"
+                        Height="54"
+                        HorizontalAlignment="Center"
+                        Background="{StaticResource CriptyAccentDarkBrush}"
+                        BorderBrush="{StaticResource CriptyBorderBrightBrush}"
+                        BorderThickness="1"
+                        CornerRadius="27">
+
+                    <TextBlock Text="◆"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               FontSize="18"
+                               Foreground="{StaticResource CriptyAccentBrush}" />
+                </Border>
+
+                <TextBlock Text="{Binding OperationText}"
+                           HorizontalAlignment="Center"
+                           FontSize="15"
+                           FontWeight="SemiBold"
+                           LetterSpacing="1.5" />
+
+                <TextBlock Text="{Binding VaultName}"
+                           HorizontalAlignment="Center"
+                           FontSize="13"
+                           Foreground="{StaticResource CriptyAccentBrush}" />
+
+                <TextBlock Text="{Binding DetailText}"
+                           HorizontalAlignment="Center"
+                           TextAlignment="Center"
+                           FontSize="12"
+                           Foreground="{StaticResource CriptyTextMutedBrush}"
+                           TextWrapping="Wrap" />
+
+                <ProgressBar Height="3"
+                             Margin="0,8,0,0"
+                             IsIndeterminate="True" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

@@ -1,0 +1,380 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Cripty.ViewModels"
+             xmlns:model="using:Cripty.Models"
+             x:Class="Cripty.Views.VaultSelectionView"
+             x:DataType="vm:VaultSelectionViewModel">
+
+    <UserControl.Styles>
+        <Style Selector="Border.panel">
+            <Setter Property="Background"
+                    Value="{StaticResource CriptySurfaceBrush}" />
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource CriptyBorderBrush}" />
+            <Setter Property="BorderThickness"
+                    Value="1" />
+            <Setter Property="CornerRadius"
+                    Value="5" />
+        </Style>
+
+        <Style Selector="Button.vault-row">
+            <Setter Property="HorizontalContentAlignment"
+                    Value="Stretch" />
+            <Setter Property="Background"
+                    Value="Transparent" />
+            <Setter Property="BorderThickness"
+                    Value="0,0,0,1" />
+            <Setter Property="BorderBrush"
+                    Value="#1B3828" />
+            <Setter Property="CornerRadius"
+                    Value="0" />
+            <Setter Property="Padding"
+                    Value="16,14" />
+        </Style>
+
+        <Style Selector="Button.vault-row:pointerover">
+            <Setter Property="Background"
+                    Value="#11291B" />
+        </Style>
+    </UserControl.Styles>
+
+    <Grid Background="{StaticResource CriptyBackgroundBrush}"
+          RowDefinitions="Auto,*">
+
+        <Border Grid.Row="0"
+                Padding="48,24"
+                BorderBrush="{StaticResource CriptyBorderBrush}"
+                BorderThickness="0,0,0,1">
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Spacing="2">
+                    <TextBlock Text="CRIPTY"
+                               FontSize="24"
+                               FontWeight="Bold"
+                               LetterSpacing="4"
+                               Foreground="{StaticResource CriptyAccentBrush}" />
+
+                    <TextBlock Text="ENCRYPTED VAULT TERMINAL"
+                               FontSize="11"
+                               LetterSpacing="2"
+                               Foreground="{StaticResource CriptyTextMutedBrush}" />
+                </StackPanel>
+
+                <Border Grid.Column="1"
+                        Padding="12,7"
+                        Background="#0B1D13"
+                        BorderBrush="{StaticResource CriptyBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="3"
+                        VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal"
+                                Spacing="8">
+                        <Ellipse Width="7"
+                                 Height="7"
+                                 Fill="{StaticResource CriptyAccentBrush}" />
+
+                        <TextBlock Text="LOCAL MODE"
+                                   FontSize="11"
+                                   FontWeight="SemiBold"
+                                   LetterSpacing="1"
+                                   Foreground="{StaticResource CriptyTextMutedBrush}" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="1"
+              Margin="48,38,48,44"
+              ColumnDefinitions="2*,28,1*">
+
+            <Grid Grid.Column="0"
+                  RowDefinitions="Auto,18,*">
+
+                <Grid Grid.Row="0"
+                      ColumnDefinitions="*,Auto">
+                    <StackPanel Spacing="5">
+                        <TextBlock Text="SELECT A VAULT"
+                                   FontSize="24"
+                                   FontWeight="SemiBold"
+                                   LetterSpacing="1" />
+
+                        <TextBlock Text="Choose an encrypted vault stored on this device."
+                                   FontSize="13"
+                                   Foreground="{StaticResource CriptyTextMutedBrush}" />
+                    </StackPanel>
+
+                    <Button Grid.Column="1"
+                            Classes="ghost"
+                            Command="{Binding RefreshCommand}"
+                            VerticalAlignment="Bottom">
+                        <StackPanel Orientation="Horizontal"
+                                    Spacing="8">
+                            <TextBlock Text="↻"
+                                       FontSize="17" />
+
+                            <TextBlock Text="REFRESH"
+                                       VerticalAlignment="Center"
+                                       FontSize="11"
+                                       FontWeight="SemiBold"
+                                       LetterSpacing="1" />
+                        </StackPanel>
+                    </Button>
+                </Grid>
+
+                <Border Grid.Row="2"
+                        Classes="panel">
+                    <Grid RowDefinitions="Auto,Auto,*">
+
+                        <!-- Vault-location controls -->
+                        <Border Grid.Row="0"
+                                Padding="16,12"
+                                BorderBrush="#1B3828"
+                                BorderThickness="0,0,0,1">
+                            <StackPanel Spacing="9">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <StackPanel Orientation="Horizontal"
+                                                Spacing="10">
+                                        <TextBlock Text="VAULT LOCATION"
+                                                   VerticalAlignment="Center"
+                                                   FontSize="10"
+                                                   FontWeight="SemiBold"
+                                                   LetterSpacing="1.5"
+                                                   Foreground="{StaticResource CriptyTextMutedBrush}" />
+
+                                        <TextBlock Text="{Binding VaultLocationModeText}"
+                                                   VerticalAlignment="Center"
+                                                   FontSize="9"
+                                                   FontWeight="SemiBold"
+                                                   LetterSpacing="1"
+                                                   Foreground="{StaticResource CriptyAccentBrush}" />
+                                    </StackPanel>
+
+                                    <TextBlock Grid.Column="1"
+                                               Text="{Binding VaultCountText}"
+                                               Margin="16,0,0,0"
+                                               VerticalAlignment="Center"
+                                               FontSize="12"
+                                               Foreground="{StaticResource CriptyTextMutedBrush}" />
+                                </Grid>
+
+                                <TextBlock Text="{Binding VaultRootPath}"
+                                           FontSize="12"
+                                           TextTrimming="CharacterEllipsis"
+                                           ToolTip.Tip="{Binding VaultRootPath}" />
+
+                                <StackPanel Orientation="Horizontal"
+                                            Spacing="8">
+                                    <Button Classes="ghost"
+                                            Padding="12,7"
+                                            IsEnabled="{Binding CanChangeVaultLocation}"
+                                            Click="ChooseVaultFolder_Click">
+                                        <TextBlock Text="CHOOSE FOLDER"
+                                                   FontSize="10"
+                                                   FontWeight="SemiBold"
+                                                   LetterSpacing="1" />
+                                    </Button>
+
+                                    <Button Classes="ghost"
+                                            Padding="12,7"
+                                            Command="{Binding UseDefaultVaultLocationCommand}">
+                                        <TextBlock Text="USE DEFAULT"
+                                                   FontSize="10"
+                                                   FontWeight="SemiBold"
+                                                   LetterSpacing="1" />
+                                    </Button>
+                                </StackPanel>
+
+                            </StackPanel>
+                        </Border>
+
+                        <Border Grid.Row="1"
+                                Margin="16,14,16,0"
+                                Padding="12"
+                                IsVisible="{Binding HasDiscoveryError}"
+                                Background="#291B13"
+                                BorderBrush="{StaticResource CriptyDangerBrush}"
+                                BorderThickness="1"
+                                CornerRadius="3">
+                            <TextBlock Text="{Binding DiscoveryError}"
+                                       Foreground="{StaticResource CriptyDangerBrush}"
+                                       TextWrapping="Wrap" />
+                        </Border>
+
+                        <Grid Grid.Row="2">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <ItemsControl ItemsSource="{Binding Vaults}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="model:VaultListItem">
+                                            <Button Classes="vault-row"
+                                                    Command="{Binding $parent[UserControl].DataContext.OpenVaultCommand}"
+                                                    CommandParameter="{Binding}">
+                                                <Grid ColumnDefinitions="46,*,Auto">
+                                                    <Border Width="34"
+                                                            Height="34"
+                                                            Background="{StaticResource CriptyAccentDarkBrush}"
+                                                            BorderBrush="{StaticResource CriptyBorderBrightBrush}"
+                                                            BorderThickness="1"
+                                                            CornerRadius="3">
+                                                        <TextBlock Text="▰"
+                                                                   HorizontalAlignment="Center"
+                                                                   VerticalAlignment="Center"
+                                                                   FontSize="15"
+                                                                   Foreground="{StaticResource CriptyAccentBrush}" />
+                                                    </Border>
+
+                                                    <StackPanel Grid.Column="1"
+                                                                Spacing="3"
+                                                                VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding Name}"
+                                                                   FontSize="15"
+                                                                   FontWeight="SemiBold" />
+
+                                                        <TextBlock Text="{Binding DirectoryPath}"
+                                                                   MaxWidth="460"
+                                                                   FontSize="11"
+                                                                   Foreground="{StaticResource CriptyTextMutedBrush}"
+                                                                   TextTrimming="CharacterEllipsis" />
+                                                    </StackPanel>
+
+                                                    <TextBlock Grid.Column="2"
+                                                               Text="›"
+                                                               Margin="18,0,4,0"
+                                                               VerticalAlignment="Center"
+                                                               FontSize="24"
+                                                               Foreground="{StaticResource CriptyAccentBrush}" />
+                                                </Grid>
+                                            </Button>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+
+                            <StackPanel IsVisible="{Binding ShowEmptyState}"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        Spacing="8">
+                                <Border Width="54"
+                                        Height="54"
+                                        Margin="0,0,0,4"
+                                        BorderBrush="{StaticResource CriptyBorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="27">
+                                    <TextBlock Text="◇"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               FontSize="25"
+                                               Foreground="{StaticResource CriptyBorderBrightBrush}" />
+                                </Border>
+
+                                <TextBlock Text="NO VAULTS DETECTED"
+                                           HorizontalAlignment="Center"
+                                           FontSize="12"
+                                           FontWeight="SemiBold"
+                                           LetterSpacing="1.5" />
+
+                                <TextBlock Text="Create one to initialize this location."
+                                           HorizontalAlignment="Center"
+                                           FontSize="12"
+                                           Foreground="{StaticResource CriptyTextMutedBrush}" />
+                            </StackPanel>
+
+                            <Border IsVisible="{Binding IsScanning}"
+                                    Background="#D907110D">
+                                <StackPanel Width="250"
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            Spacing="12">
+                                    <TextBlock Text="SCANNING VAULT LOCATION"
+                                               HorizontalAlignment="Center"
+                                               FontSize="11"
+                                               FontWeight="SemiBold"
+                                               LetterSpacing="1.5" />
+
+                                    <ProgressBar Height="3"
+                                                 IsIndeterminate="True" />
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <Border Grid.Column="2"
+                    Classes="panel"
+                    Padding="26">
+                <Grid RowDefinitions="Auto,24,Auto,12,Auto,*,Auto">
+                    <StackPanel Grid.Row="0"
+                                Spacing="8">
+                        <Border Width="42"
+                                Height="42"
+                                HorizontalAlignment="Left"
+                                Background="{StaticResource CriptyAccentDarkBrush}"
+                                BorderBrush="{StaticResource CriptyBorderBrightBrush}"
+                                BorderThickness="1"
+                                CornerRadius="3">
+                            <TextBlock Text="+"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       FontSize="25"
+                                       Foreground="{StaticResource CriptyAccentBrush}" />
+                        </Border>
+
+                        <TextBlock Text="CREATE NEW VAULT"
+                                   FontSize="18"
+                                   FontWeight="SemiBold"
+                                   LetterSpacing="1" />
+
+                        <TextBlock Text="The name becomes the vault's folder name. No files are created until you set its password."
+                                   FontSize="12"
+                                   LineHeight="18"
+                                   Foreground="{StaticResource CriptyTextMutedBrush}"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="2"
+                                Spacing="7">
+                        <TextBlock Text="VAULT NAME"
+                                   FontSize="10"
+                                   FontWeight="SemiBold"
+                                   LetterSpacing="1.5"
+                                   Foreground="{StaticResource CriptyTextMutedBrush}" />
+
+                        <TextBox Text="{Binding NewVaultName, UpdateSourceTrigger=PropertyChanged}"
+                                 MaxLength="80"
+                                 Watermark="e.g. Personal" />
+                    </StackPanel>
+
+                    <TextBlock Grid.Row="4"
+                               Text="{Binding NewVaultNameError}"
+                               IsVisible="{Binding HasNewVaultNameError}"
+                               FontSize="11"
+                               Foreground="{StaticResource CriptyDangerBrush}"
+                               TextWrapping="Wrap" />
+
+                    <StackPanel Grid.Row="6"
+                                Spacing="12">
+                        <Border Padding="12"
+                                Background="#0A1C12"
+                                BorderBrush="#1B3828"
+                                BorderThickness="1"
+                                CornerRadius="3">
+                            <TextBlock Text="Your vault will be stored inside the location shown on the left."
+                                       FontSize="11"
+                                       LineHeight="16"
+                                       Foreground="{StaticResource CriptyTextMutedBrush}"
+                                       TextWrapping="Wrap" />
+                        </Border>
+
+                        <Button Classes="primary"
+                                Command="{Binding CreateVaultCommand}"
+                                HorizontalContentAlignment="Center">
+                            <TextBlock Text="CONTINUE TO PASSWORD"
+                                       FontSize="11"
+                                       FontWeight="SemiBold"
+                                       LetterSpacing="1.2" />
+                        </Button>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

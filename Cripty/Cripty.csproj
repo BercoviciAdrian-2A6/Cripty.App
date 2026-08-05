@@ -8,8 +8,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Folder Include="Models\" />
     <AvaloniaResource Include="Assets\**" />
+    <Folder Include="Styles\" />
+    <Folder Include="Validation\" />
   </ItemGroup>
 
   <ItemGroup>
@@ -22,5 +23,10 @@
       <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
     </PackageReference>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Cripty.Application\Cripty.Application.csproj" />
+    <ProjectReference Include="..\Cripty.Core\Cripty.Core.csproj" />
   </ItemGroup>
 </Project>

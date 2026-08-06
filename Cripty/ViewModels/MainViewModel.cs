@@ -1,47 +1,50 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Security.Cryptography;
-using System.Threading;
 using System.Threading.Tasks;
-using CommunityToolkit.Mvvm.ComponentModel;
 using Cripty.Application.Vaults;
+using Cripty.Cryptography.Keys;
 using Cripty.Models;
 using Cripty.Services;
 
 namespace Cripty.ViewModels;
 
-public partial class MainViewModel :
+public sealed class MainViewModel :
     ViewModelBase,
-    IAsyncDisposable
+    IDisposable
 {
     private readonly VaultSelectionViewModel
         _vaultSelectionViewModel;
 
-    private readonly CancellationTokenSource
-        _shutdownCancellation = new();
-
     private VaultSession? _activeSession;
     private bool _disposed;
 
-    [ObservableProperty]
-    public partial ViewModelBase CurrentPage
+    private ViewModelBase _currentPage = null!;
+
+    public ViewModelBase CurrentPage
     {
-        get;
-        private set;
+        get => _currentPage;
+
+        private set =>
+            SetProperty(
+                ref _currentPage,
+                value);
     }
 
     public MainViewModel()
     {
-        _vaultSelectionViewModel = new VaultSelectionViewModel(
-            new VaultLocationService(),
-            new VaultDiscoveryService(),
-            new VaultNameValidator(),
-            NavigateToUnlockPassword,
-            NavigateToCreatePassword);
+        _vaultSelectionViewModel =
+            new VaultSelectionViewModel(
+                new VaultLocationService(),
+                new VaultDiscoveryService(),
+                new VaultNameValidator(),
+                NavigateToUnlockPassword,
+                NavigateToCreatePassword);
 
-        CurrentPage = _vaultSelectionViewModel;
+        CurrentPage =
+            _vaultSelectionViewModel;
 
-        // The command handles discovery errors itself.
+        // The command handles discovery errors and does not block startup.
         _vaultSelectionViewModel
             .RefreshCommand
             .Execute(null);
@@ -70,58 +73,64 @@ public partial class MainViewModel :
     private void NavigateToPassword(
         VaultNavigationRequest request)
     {
-        if (_disposed)
-            return;
+        ThrowIfDisposed();
 
-        CurrentPage = new VaultPasswordViewModel(
-            request,
-            ReturnToVaultSelection,
-            SubmitPasswordAsync);
+        CurrentPage =
+            new VaultPasswordViewModel(
+                request,
+                NavigateToVaultSelection,
+                SubmitPasswordAsync);
     }
 
-    private void ReturnToVaultSelection()
+    private void NavigateToVaultSelection()
     {
-        if (_disposed)
-            return;
+        ThrowIfDisposed();
 
-        // Reuse the existing instance so a custom vault
-        // location selected by the user is preserved.
-        CurrentPage = _vaultSelectionViewModel;
+        CurrentPage =
+            _vaultSelectionViewModel;
     }
 
     private async Task SubmitPasswordAsync(
-        VaultPasswordViewModel passwordPage,
+        VaultPasswordViewModel source,
         string password)
     {
-        if (_disposed)
-            return;
+        ThrowIfDisposed();
 
         VaultNavigationRequest request =
-            passwordPage.Request;
+            source.Request;
+
+        Argon2idParameters? creationKdfParameters =
+            request.Mode == VaultPasswordMode.Create
+                ? source.CreationKdfParameters
+                : null;
 
         CurrentPage =
             new LoadingViewModel(request);
 
-        VaultSession? openedSession = null;
-
         try
         {
-            CancellationToken cancellationToken =
-                _shutdownCancellation.Token;
+            VaultSession session;
 
-            // VaultSession.OpenAsync and CreateAsync eventually run
-            // synchronous Argon2 work. Task.Run prevents that work
-            // from freezing the Avalonia UI thread.
-            openedSession = await Task.Run(
-                () => OpenOrCreateSessionAsync(
-                    request,
-                    password,
-                    cancellationToken),
-                cancellationToken);
+            if (request.Mode ==
+                VaultPasswordMode.Create)
+            {
+                session = await Task.Run(() =>
+                    VaultSession.CreateAsync(
+                        request.VaultDirectoryPath,
+                        password,
+                        creationKdfParameters));
+            }
+            else
+            {
+                session = await Task.Run(() =>
+                    VaultSession.OpenAsync(
+                        request.VaultDirectoryPath,
+                        password));
+            }
 
             if (_disposed)
             {
-                await openedSession.DisposeAsync();
+                await session.DisposeAsync();
                 return;
             }
 
@@ -130,72 +139,69 @@ public partial class MainViewModel :
                 await _activeSession.DisposeAsync();
             }
 
-            _activeSession = openedSession;
+            _activeSession = session;
 
-            // Ownership has moved to _activeSession.
-            openedSession = null;
-
-            CurrentPage = new MainVaultViewModel(
-                request.VaultName,
-                LockVaultAsync);
+            CurrentPage =
+                new MainVaultViewModel(
+                    request.VaultName,
+                    LockVaultAsync);
         }
-        catch (OperationCanceledException)
-            when (_disposed)
+        catch (CryptographicException)
         {
-            if (openedSession is not null)
-            {
-                await openedSession.DisposeAsync();
-            }
+            ReturnToPasswordWithError(
+                source,
+                "The password is incorrect, or the vault data is damaged.");
         }
-        catch (Exception exception)
+        catch (UnauthorizedAccessException)
         {
-            if (openedSession is not null)
-            {
-                await openedSession.DisposeAsync();
-            }
-
-            if (_disposed)
-                return;
-
-            passwordPage.ShowError(
-                GetVaultErrorMessage(
-                    exception,
-                    request.Mode));
-
-            CurrentPage = passwordPage;
+            ReturnToPasswordWithError(
+                source,
+                "Cripty does not have permission to access this vault location.");
+        }
+        catch (InvalidDataException)
+        {
+            ReturnToPasswordWithError(
+                source,
+                "The vault data is missing, damaged, or unsupported.");
+        }
+        catch (IOException)
+        {
+            ReturnToPasswordWithError(
+                source,
+                "The vault could not be read or written. Try again.");
+        }
+        catch (ArgumentException exception)
+        {
+            ReturnToPasswordWithError(
+                source,
+                exception.Message);
+        }
+        catch (InvalidOperationException exception)
+        {
+            ReturnToPasswordWithError(
+                source,
+                exception.Message);
         }
     }
 
-    private static Task<VaultSession>
-        OpenOrCreateSessionAsync(
-            VaultNavigationRequest request,
-            string password,
-            CancellationToken cancellationToken)
+    private void ReturnToPasswordWithError(
+        VaultPasswordViewModel source,
+        string errorMessage)
     {
-        return request.Mode switch
-        {
-            VaultPasswordMode.Create =>
-                VaultSession.CreateAsync(
-                    request.VaultDirectoryPath,
-                    password,
-                    cancellationToken: cancellationToken),
+        if (_disposed)
+            return;
 
-            VaultPasswordMode.Unlock =>
-                VaultSession.OpenAsync(
-                    request.VaultDirectoryPath,
-                    password,
-                    cancellationToken),
-
-            _ => throw new ArgumentOutOfRangeException(
-                nameof(request),
-                request.Mode,
-                "Unsupported password-page mode.")
-        };
+        CurrentPage = source;
+        source.ShowError(errorMessage);
     }
 
     private async Task LockVaultAsync()
     {
-        VaultSession? session = _activeSession;
+        ThrowIfDisposed();
+
+        VaultSession? session =
+            _activeSession;
+
         _activeSession = null;
 
         if (session is not null)
@@ -203,114 +209,40 @@ public partial class MainViewModel :
             await session.DisposeAsync();
         }
 
-        if (_disposed)
-            return;
+        CurrentPage =
+            _vaultSelectionViewModel;
 
-        CurrentPage = _vaultSelectionViewModel;
-
-        // This makes newly created vaults appear in the list
-        // after returning from the main vault page.
         _vaultSelectionViewModel
             .RefreshCommand
             .Execute(null);
     }
 
-    private static string GetVaultErrorMessage(
-        Exception exception,
-        VaultPasswordMode mode)
+    private void ThrowIfDisposed()
     {
-        return exception switch
-        {
-            CryptographicException
-                when mode == VaultPasswordMode.Unlock =>
-                "The password is incorrect, or the vault file has been modified or damaged.",
-
-            CryptographicException =>
-                "The vault could not be created securely.",
-
-            FileNotFoundException =>
-                "The selected vault could not be found.",
-
-            DirectoryNotFoundException =>
-                "The selected vault location could not be found.",
-
-            UnauthorizedAccessException =>
-                "Cripty does not have permission to access this vault location.",
-
-            InvalidDataException =>
-                "The vault contains invalid or damaged data.",
-
-            NotSupportedException =>
-                "This vault uses a format that this version of Cripty does not support.",
-
-            InvalidOperationException
-                when mode == VaultPasswordMode.Create =>
-                "A vault already exists at this location.",
-
-            ArgumentException =>
-                "The password or vault location is not valid.",
-
-            IOException
-                when mode == VaultPasswordMode.Create =>
-                "The vault could not be written to this location.",
-
-            IOException =>
-                "The vault could not be read from this location.",
-
-            _ =>
-                mode == VaultPasswordMode.Create
-                    ? "Cripty could not create the vault."
-                    : "Cripty could not open the vault."
-        };
-    }
-
-    private static string GetDefaultVaultRootPath()
-    {
-        string documentsPath =
-            Environment.GetFolderPath(
-                Environment.SpecialFolder.MyDocuments);
-
-        if (string.IsNullOrWhiteSpace(documentsPath))
-        {
-            documentsPath =
-                Environment.GetFolderPath(
-                    Environment.SpecialFolder.UserProfile);
-        }
-
-        if (string.IsNullOrWhiteSpace(documentsPath))
-        {
-            documentsPath = AppContext.BaseDirectory;
-        }
-
-        return Path.Combine(
-            documentsPath,
-            "Cripty Vaults");
+        ObjectDisposedException.ThrowIf(
+            _disposed,
+            this);
     }
 
     public void Dispose()
-    {
-        DisposeAsync()
-            .AsTask()
-            .GetAwaiter()
-            .GetResult();
-    }
-
-    public async ValueTask DisposeAsync()
     {
         if (_disposed)
             return;
 
         _disposed = true;
-        _shutdownCancellation.Cancel();
 
-        VaultSession? session = _activeSession;
+        VaultSession? session =
+            _activeSession;
+
         _activeSession = null;
 
         if (session is not null)
         {
-            await session.DisposeAsync();
+            session
+                .DisposeAsync()
+                .AsTask()
+                .GetAwaiter()
+                .GetResult();
         }
-
-        _shutdownCancellation.Dispose();
     }
 }

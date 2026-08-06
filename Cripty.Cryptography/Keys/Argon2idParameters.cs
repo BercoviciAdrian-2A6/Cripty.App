@@ -7,14 +7,14 @@ public sealed class Argon2idParameters
 
     // Limits protect against weak or maliciously expensive parameters
     // loaded from a vault file.
-    private const int MinimumMemorySizeKiB = 19 * 1024;
-    private const int MaximumMemorySizeKiB = 256 * 1024;
+    public const int MinimumMemorySizeKiB = 19 * 1024;
+    public const int MaximumMemorySizeKiB = 256 * 1024;
 
-    private const int MinimumIterations = 2;
-    private const int MaximumIterations = 10;
+    public const int MinimumIterations = 2;
+    public const int MaximumIterations = 10;
 
-    private const int MinimumParallelism = 1;
-    private const int MaximumParallelism = 16;
+    public const int MinimumParallelism = 1;
+    public const int MaximumParallelism = 16;
 
     public required int Version { get; init; }
     public required int MemorySizeKiB { get; init; }

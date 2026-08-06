@@ -1,7 +1,8 @@
-﻿using System;
+using System;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Cripty.Cryptography.Keys;
 using Cripty.Models;
 
 namespace Cripty.ViewModels;
@@ -15,6 +16,10 @@ public partial class VaultPasswordViewModel :
         VaultPasswordViewModel,
         string,
         Task> _submitPassword;
+
+    private int _selectedMemorySizeKiB;
+    private int _selectedIterations;
+    private int _selectedParallelism;
 
     public VaultPasswordViewModel(
         VaultNavigationRequest request,
@@ -35,6 +40,20 @@ public partial class VaultPasswordViewModel :
         _submitPassword = submitPassword ??
             throw new ArgumentNullException(
                 nameof(submitPassword));
+
+        Argon2idParameters recommended =
+            Argon2idParameters.Recommended;
+
+        _selectedMemorySizeKiB =
+            recommended.MemorySizeKiB;
+
+        _selectedIterations =
+            recommended.Iterations;
+
+        _selectedParallelism =
+            recommended.DegreeOfParallelism;
+
+        CopySelectedKdfParametersToDraft();
     }
 
     public VaultNavigationRequest Request { get; }
@@ -67,6 +86,44 @@ public partial class VaultPasswordViewModel :
         IsCreateMode
             ? "CREATE VAULT"
             : "UNLOCK VAULT";
+
+    public int MinimumMemorySizeMiB =>
+        Argon2idParameters.MinimumMemorySizeKiB /
+        1024;
+
+    public int MaximumMemorySizeMiB =>
+        Argon2idParameters.MaximumMemorySizeKiB /
+        1024;
+
+    public int MinimumIterations =>
+        Argon2idParameters.MinimumIterations;
+
+    public int MaximumIterations =>
+        Argon2idParameters.MaximumIterations;
+
+    public int MinimumParallelism =>
+        Argon2idParameters.MinimumParallelism;
+
+    public int MaximumParallelism =>
+        Argon2idParameters.MaximumParallelism;
+
+    public string MinimumMemorySizeText =>
+        $"{MinimumMemorySizeMiB} MiB";
+
+    public string MaximumMemorySizeText =>
+        $"{MaximumMemorySizeMiB} MiB";
+
+    public string MinimumIterationsText =>
+        MinimumIterations.ToString();
+
+    public string MaximumIterationsText =>
+        MaximumIterations.ToString();
+
+    public string MinimumParallelismText =>
+        MinimumParallelism.ToString();
+
+    public string MaximumParallelismText =>
+        MaximumParallelism.ToString();
 
     [ObservableProperty]
     public partial string Password
@@ -110,6 +167,34 @@ public partial class VaultPasswordViewModel :
         private set;
     }
 
+    [ObservableProperty]
+    public partial bool IsKdfSettingsOpen
+    {
+        get;
+        private set;
+    }
+
+    [ObservableProperty]
+    public partial double DraftMemorySizeMiB
+    {
+        get;
+        set;
+    }
+
+    [ObservableProperty]
+    public partial double DraftIterations
+    {
+        get;
+        set;
+    }
+
+    [ObservableProperty]
+    public partial double DraftParallelism
+    {
+        get;
+        set;
+    }
+
     public bool HasError =>
         !string.IsNullOrWhiteSpace(
             ErrorMessage);
@@ -131,6 +216,57 @@ public partial class VaultPasswordViewModel :
         IsConfirmPasswordVisible
             ? "HIDE"
             : "SHOW";
+
+    public string KdfSummaryText =>
+        $"ARGON2ID · " +
+        $"{_selectedMemorySizeKiB / 1024} MiB · " +
+        $"{FormatCount(_selectedIterations, "iteration")} · " +
+        FormatCount(_selectedParallelism, "lane");
+
+    public string KdfProfileText =>
+        UsesRecommendedKdfParameters()
+            ? "DEFAULT PARAMETERS"
+            : "CUSTOM PARAMETERS";
+
+    public string KdfMemoryValueText =>
+        $"{ToWholeNumber(DraftMemorySizeMiB)} MiB";
+
+    public string KdfIterationsValueText =>
+        FormatCount(
+            ToWholeNumber(DraftIterations),
+            "iteration");
+
+    public string KdfParallelismValueText =>
+        FormatCount(
+            ToWholeNumber(DraftParallelism),
+            "lane");
+
+    public Argon2idParameters? CreationKdfParameters
+    {
+        get
+        {
+            if (!IsCreateMode ||
+                UsesRecommendedKdfParameters())
+            {
+                return null;
+            }
+
+            return new Argon2idParameters
+            {
+                Version =
+                    Argon2idParameters.SupportedVersion,
+
+                MemorySizeKiB =
+                    _selectedMemorySizeKiB,
+
+                Iterations =
+                    _selectedIterations,
+
+                DegreeOfParallelism =
+                    _selectedParallelism
+            };
+        }
+    }
 
     partial void OnPasswordChanged(
         string value)
@@ -179,6 +315,27 @@ public partial class VaultPasswordViewModel :
         bool value)
     {
         SubmitCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnDraftMemorySizeMiBChanged(
+        double value)
+    {
+        OnPropertyChanged(
+            nameof(KdfMemoryValueText));
+    }
+
+    partial void OnDraftIterationsChanged(
+        double value)
+    {
+        OnPropertyChanged(
+            nameof(KdfIterationsValueText));
+    }
+
+    partial void OnDraftParallelismChanged(
+        double value)
+    {
+        OnPropertyChanged(
+            nameof(KdfParallelismValueText));
     }
 
     private bool CanSubmit()
@@ -236,6 +393,7 @@ public partial class VaultPasswordViewModel :
     {
         ClearPasswordInputs();
         ErrorMessage = null;
+        IsKdfSettingsOpen = false;
 
         _goBack();
     }
@@ -254,6 +412,94 @@ public partial class VaultPasswordViewModel :
             !IsConfirmPasswordVisible;
     }
 
+    [RelayCommand]
+    private void OpenKdfSettings()
+    {
+        if (!IsCreateMode)
+            return;
+
+        CopySelectedKdfParametersToDraft();
+        IsKdfSettingsOpen = true;
+    }
+
+    [RelayCommand]
+    private void CancelKdfSettings()
+    {
+        CopySelectedKdfParametersToDraft();
+        IsKdfSettingsOpen = false;
+    }
+
+    [RelayCommand]
+    private void RestoreDefaultKdfSettings()
+    {
+        Argon2idParameters recommended =
+            Argon2idParameters.Recommended;
+
+        DraftMemorySizeMiB =
+            recommended.MemorySizeKiB /
+            1024;
+
+        DraftIterations =
+            recommended.Iterations;
+
+        DraftParallelism =
+            recommended.DegreeOfParallelism;
+    }
+
+    [RelayCommand]
+    private void ApplyKdfSettings()
+    {
+        if (!IsCreateMode)
+            return;
+
+        int memorySizeKiB = checked(
+            ToWholeNumber(DraftMemorySizeMiB) *
+            1024);
+
+        int iterations =
+            ToWholeNumber(DraftIterations);
+
+        int parallelism =
+            ToWholeNumber(DraftParallelism);
+
+        Argon2idParameters parameters = new()
+        {
+            Version =
+                Argon2idParameters.SupportedVersion,
+
+            MemorySizeKiB =
+                memorySizeKiB,
+
+            Iterations =
+                iterations,
+
+            DegreeOfParallelism =
+                parallelism
+        };
+
+        parameters.Validate();
+
+        _selectedMemorySizeKiB =
+            memorySizeKiB;
+
+        _selectedIterations =
+            iterations;
+
+        _selectedParallelism =
+            parallelism;
+
+        OnPropertyChanged(
+            nameof(KdfSummaryText));
+
+        OnPropertyChanged(
+            nameof(KdfProfileText));
+
+        OnPropertyChanged(
+            nameof(CreationKdfParameters));
+
+        IsKdfSettingsOpen = false;
+    }
+
     public void ShowError(
         string errorMessage)
     {
@@ -266,6 +512,32 @@ public partial class VaultPasswordViewModel :
         }
 
         ErrorMessage = errorMessage;
+    }
+
+    private void CopySelectedKdfParametersToDraft()
+    {
+        DraftMemorySizeMiB =
+            _selectedMemorySizeKiB /
+            1024;
+
+        DraftIterations =
+            _selectedIterations;
+
+        DraftParallelism =
+            _selectedParallelism;
+    }
+
+    private bool UsesRecommendedKdfParameters()
+    {
+        Argon2idParameters recommended =
+            Argon2idParameters.Recommended;
+
+        return _selectedMemorySizeKiB ==
+                   recommended.MemorySizeKiB &&
+               _selectedIterations ==
+                   recommended.Iterations &&
+               _selectedParallelism ==
+                   recommended.DegreeOfParallelism;
     }
 
     private void ClearPasswordInputs()
@@ -291,5 +563,23 @@ public partial class VaultPasswordViewModel :
         return characterCount == 1
             ? "1 CHARACTER ENTERED"
             : $"{characterCount} CHARACTERS ENTERED";
+    }
+
+    private static string FormatCount(
+        int count,
+        string singularUnit)
+    {
+        return count == 1
+            ? $"1 {singularUnit}"
+            : $"{count} {singularUnit}s";
+    }
+
+    private static int ToWholeNumber(
+        double value)
+    {
+        return checked(
+            (int)Math.Round(
+                value,
+                MidpointRounding.AwayFromZero));
     }
 }

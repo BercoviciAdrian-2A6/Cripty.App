@@ -3,10 +3,14 @@
         xmlns:vm="using:Cripty.ViewModels"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+        mc:Ignorable="d" d:DesignWidth="1180" d:DesignHeight="720"
         x:Class="Cripty.Views.MainWindow"
         x:DataType="vm:MainViewModel"
-        Icon="/Assets/avalonia-logo.ico"
+        Width="1180"
+        Height="720"
+        MinWidth="900"
+        MinHeight="600"
+        WindowStartupLocation="CenterScreen"
         Title="Cripty">
 
     <Design.DataContext>
@@ -15,6 +19,8 @@
         <vm:MainViewModel />
     </Design.DataContext>
 
-<ContentControl Content="{Binding CurrentPage}" />
+    <ContentControl Content="{Binding CurrentPage}"
+                    HorizontalContentAlignment="Stretch"
+                    VerticalContentAlignment="Stretch" />
 
 </Window>

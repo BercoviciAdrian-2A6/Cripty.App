@@ -144,6 +144,7 @@ public sealed class MainViewModel :
             CurrentPage =
                 new MainVaultViewModel(
                     request.VaultName,
+                    session,
                     LockVaultAsync);
         }
         catch (CryptographicException)

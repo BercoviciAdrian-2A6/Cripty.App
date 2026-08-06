@@ -18,6 +18,9 @@ public partial class MainVaultViewModel :
     private readonly VaultSession _session;
     private readonly Func<Task> _lockVault;
 
+    private readonly HashSet<Guid>
+        _expandedFolderIds = [];
+
     private VaultFolderListItemViewModel?
         _selectedFolder;
 
@@ -87,6 +90,11 @@ public partial class MainVaultViewModel :
         VaultEntryListItemViewModel> EntryItems
     { get; } = [];
 
+    public IReadOnlyList<
+        VaultEntrySortOptionViewModel> SortOptions
+    { get; } =
+        VaultEntrySortOptionViewModel.All;
+
     [ObservableProperty]
     public partial bool IsBusy
     {
@@ -134,7 +142,7 @@ public partial class MainVaultViewModel :
     {
         get;
         private set;
-    } = "ALL ENTRIES";
+    } = "ROOT";
 
     [ObservableProperty]
     public partial string CurrentFilterDescription
@@ -149,6 +157,21 @@ public partial class MainVaultViewModel :
         get;
         private set;
     } = "0 ENTRIES";
+
+    [ObservableProperty]
+    public partial string SearchText
+    {
+        get;
+        set;
+    } = string.Empty;
+
+    [ObservableProperty]
+    public partial VaultEntrySortOptionViewModel?
+        SelectedSortOption
+    {
+        get;
+        set;
+    } = VaultEntrySortOptionViewModel.ModifiedNewest;
 
     [ObservableProperty]
     public partial bool HasEntries
@@ -312,6 +335,18 @@ public partial class MainVaultViewModel :
             nameof(HasNoEntries));
     }
 
+    partial void OnSearchTextChanged(
+        string value)
+    {
+        ApplyEntryFilter();
+    }
+
+    partial void OnSelectedSortOptionChanged(
+        VaultEntrySortOptionViewModel? value)
+    {
+        ApplyEntryFilter();
+    }
+
     partial void OnErrorMessageChanged(
         string? value)
     {
@@ -374,6 +409,26 @@ public partial class MainVaultViewModel :
             "NEW TAG",
             "Create a vault-wide tag for organizing entries.",
             "CREATE TAG");
+    }
+
+    [RelayCommand(CanExecute = nameof(CanMutateVault))]
+    private void NewEntry()
+    {
+        string location =
+            _selectedFolder?.IsFolder == true
+                ? $"inside '{_selectedFolder.Name}'"
+                : "in ROOT";
+
+        string tagAssignment =
+            _selectedTag?.TagId.HasValue == true
+                ? $" It will receive the '{_selectedTag.Name}' tag."
+                : string.Empty;
+
+        OpenInputDialog(
+            DialogAction.CreateEntry,
+            "NEW ENTRY",
+            $"Create an empty entry {location}.{tagAssignment}",
+            "CREATE ENTRY");
     }
 
     [RelayCommand(CanExecute = nameof(CanDeleteFolder))]
@@ -513,6 +568,10 @@ public partial class MainVaultViewModel :
         {
             switch (_dialogAction)
             {
+                case DialogAction.CreateEntry:
+                    CreateEntryFromDialog();
+                    break;
+
                 case DialogAction.CreateFolder:
                     CreateFolderFromDialog();
                     break;
@@ -566,6 +625,11 @@ public partial class MainVaultViewModel :
                 DialogInput.Trim(),
                 parentFolderId);
 
+        if (parentFolderId is Guid parentId)
+        {
+            _expandedFolderIds.Add(parentId);
+        }
+
         RefreshBrowser(
             selectedFolderKind:
                 VaultFolderFilterKind.Folder,
@@ -574,6 +638,35 @@ public partial class MainVaultViewModel :
 
         RecordUnsavedChange(
             $"FOLDER '{folder.Name}' CREATED");
+    }
+
+    private void CreateEntryFromDialog()
+    {
+        string entryName =
+            DialogInput.Trim();
+
+        Guid? folderId =
+            _selectedFolder?.IsFolder == true
+                ? _selectedFolder.FolderId
+                : null;
+
+        IEnumerable<Guid>? tagIds =
+            _selectedTag?.TagId is Guid tagId
+                ? [tagId]
+                : null;
+
+        Guid entryId =
+            _session.CreateEntry(
+                    entryName,
+                    folderId,
+                    tagIds)
+                .EntryId;
+
+        RefreshBrowser(
+            selectedEntryId: entryId);
+
+        RecordUnsavedChange(
+            $"ENTRY '{entryName}' CREATED");
     }
 
     private void CreateTagFromDialog()
@@ -605,11 +698,13 @@ public partial class MainVaultViewModel :
 
         _session.DeleteFolder(folderId);
 
+        _expandedFolderIds.Remove(folderId);
+
         RefreshBrowser(
             selectedFolderKind:
                 folder.ParentFolderId.HasValue
                     ? VaultFolderFilterKind.Folder
-                    : VaultFolderFilterKind.AllEntries,
+                    : VaultFolderFilterKind.Root,
             selectedFolderId:
                 folder.ParentFolderId);
 
@@ -699,6 +794,72 @@ public partial class MainVaultViewModel :
         DeleteFolderCommand.NotifyCanExecuteChanged();
     }
 
+    private void ToggleFolderExpansion(
+        VaultFolderListItemViewModel folder)
+    {
+        if (IsBusy ||
+            IsDialogOpen ||
+            !folder.IsExpandable ||
+            folder.FolderId is not Guid folderId)
+        {
+            return;
+        }
+
+        if (_expandedFolderIds.Add(folderId))
+        {
+            RefreshBrowser();
+            return;
+        }
+
+        _expandedFolderIds.Remove(folderId);
+
+        if (IsSelectedFolderDescendantOf(folderId))
+        {
+            RefreshBrowser(
+                selectedFolderKind:
+                    VaultFolderFilterKind.Folder,
+                selectedFolderId: folderId);
+        }
+        else
+        {
+            RefreshBrowser();
+        }
+    }
+
+    private bool IsSelectedFolderDescendantOf(
+        Guid possibleAncestorId)
+    {
+        if (_selectedFolder?.FolderId is not Guid selectedId ||
+            selectedId == possibleAncestorId)
+        {
+            return false;
+        }
+
+        Dictionary<Guid, Guid?> parents =
+            _session.Folders.ToDictionary(
+                folder => folder.FolderId,
+                folder => folder.ParentFolderId);
+
+        HashSet<Guid> visited = [];
+        Guid? currentId = selectedId;
+
+        while (currentId is Guid id &&
+               visited.Add(id) &&
+               parents.TryGetValue(
+                   id,
+                   out Guid? parentId))
+        {
+            if (parentId == possibleAncestorId)
+            {
+                return true;
+            }
+
+            currentId = parentId;
+        }
+
+        return false;
+    }
+
     private void SelectTag(
         VaultTagListItemViewModel tag)
     {
@@ -751,7 +912,7 @@ public partial class MainVaultViewModel :
         VaultFolderFilterKind folderKind =
             selectedFolderKind ??
             _selectedFolder?.Kind ??
-            VaultFolderFilterKind.AllEntries;
+            VaultFolderFilterKind.Root;
 
         Guid? folderId =
             selectedFolderKind.HasValue
@@ -835,30 +996,22 @@ public partial class MainVaultViewModel :
 
         FolderItems.Add(
             new VaultFolderListItemViewModel(
-                VaultFolderFilterKind.AllEntries,
+                VaultFolderFilterKind.Root,
                 folderId: null,
                 parentFolderId: null,
-                "ALL ENTRIES",
+                "ROOT",
                 depth: 0,
                 entries.Count,
-                SelectFolder));
-
-        FolderItems.Add(
-            new VaultFolderListItemViewModel(
-                VaultFolderFilterKind.Unfiled,
-                folderId: null,
-                parentFolderId: null,
-                "UNFILED",
-                depth: 0,
-                entries.Count(entry =>
-                    entry.FolderId is null),
-                SelectFolder));
+                isExpandable: false,
+                isExpanded: true,
+                SelectFolder,
+                ToggleFolderExpansion));
 
         HashSet<Guid> visited = [];
 
         AddFolderChildren(
             parentFolderId: null,
-            depth: 0,
+            depth: 1,
             folders,
             entries,
             visited);
@@ -898,14 +1051,26 @@ public partial class MainVaultViewModel :
                     entries.Count(entry =>
                         entry.FolderId ==
                         folder.FolderId),
-                    SelectFolder));
+                    isExpandable: folders.Any(
+                        child =>
+                            child.ParentFolderId ==
+                            folder.FolderId),
+                    isExpanded:
+                        _expandedFolderIds.Contains(
+                            folder.FolderId),
+                    SelectFolder,
+                    ToggleFolderExpansion));
 
-            AddFolderChildren(
-                folder.FolderId,
-                depth + 1,
-                folders,
-                entries,
-                visited);
+            if (_expandedFolderIds.Contains(
+                    folder.FolderId))
+            {
+                AddFolderChildren(
+                    folder.FolderId,
+                    depth + 1,
+                    folders,
+                    entries,
+                    visited);
+            }
         }
     }
 
@@ -950,7 +1115,7 @@ public partial class MainVaultViewModel :
         return match ??
                FolderItems.First(item =>
                    item.Kind ==
-                   VaultFolderFilterKind.AllEntries);
+                   VaultFolderFilterKind.Root);
     }
 
     private VaultTagListItemViewModel
@@ -985,13 +1150,7 @@ public partial class MainVaultViewModel :
             entries;
 
         if (_selectedFolder?.Kind ==
-            VaultFolderFilterKind.Unfiled)
-        {
-            filtered = filtered.Where(entry =>
-                entry.FolderId is null);
-        }
-        else if (_selectedFolder?.Kind ==
-                 VaultFolderFilterKind.Folder)
+            VaultFolderFilterKind.Folder)
         {
             Guid? selectedFolderId =
                 _selectedFolder.FolderId;
@@ -1008,6 +1167,18 @@ public partial class MainVaultViewModel :
                     selectedTagId));
         }
 
+        if (!string.IsNullOrWhiteSpace(
+                SearchText))
+        {
+            string searchText =
+                SearchText.Trim();
+
+            filtered = filtered.Where(entry =>
+                entry.Name.Contains(
+                    searchText,
+                    StringComparison.OrdinalIgnoreCase));
+        }
+
         Dictionary<Guid, string> folderNames =
             folders.ToDictionary(
                 folder => folder.FolderId,
@@ -1020,12 +1191,8 @@ public partial class MainVaultViewModel :
 
         EntryItems.Clear();
 
-        foreach (EntryDescriptor entry in filtered
-                     .OrderByDescending(entry =>
-                         entry.ModifiedUtc)
-                     .ThenBy(
-                         entry => entry.Name,
-                         StringComparer.OrdinalIgnoreCase))
+        foreach (EntryDescriptor entry in
+                 SortEntries(filtered))
         {
             string locationText =
                 entry.FolderId is Guid folderId &&
@@ -1033,7 +1200,7 @@ public partial class MainVaultViewModel :
                     folderId,
                     out string? folderName)
                     ? $"FOLDER · {folderName}"
-                    : "FOLDER · UNFILED";
+                    : "FOLDER · ROOT";
 
             string[] assignedTagNames =
                 entry.TagIds
@@ -1060,6 +1227,7 @@ public partial class MainVaultViewModel :
                     locationText,
                     tagSummary,
                     entry.Revision,
+                    entry.CreatedUtc,
                     entry.ModifiedUtc,
                     SelectEntry));
         }
@@ -1067,7 +1235,8 @@ public partial class MainVaultViewModel :
         _selectedEntry =
             selectedEntryId.HasValue
                 ? EntryItems.FirstOrDefault(item =>
-                    item.EntryId == selectedEntryId)
+                    item.EntryId ==
+                    selectedEntryId)
                 : null;
 
         foreach (VaultEntryListItemViewModel item
@@ -1081,7 +1250,7 @@ public partial class MainVaultViewModel :
 
         CurrentFilterTitle =
             _selectedFolder?.Name ??
-            "ALL ENTRIES";
+            "ROOT";
 
         CurrentFilterDescription =
             _selectedTag?.TagId.HasValue == true
@@ -1095,6 +1264,65 @@ public partial class MainVaultViewModel :
         HasEntries = EntryItems.Count > 0;
 
         DeleteEntryCommand.NotifyCanExecuteChanged();
+    }
+
+    private IEnumerable<EntryDescriptor> SortEntries(
+        IEnumerable<EntryDescriptor> entries)
+    {
+        VaultEntrySortKind sortKind =
+            SelectedSortOption?.Kind ??
+            VaultEntrySortKind.ModifiedNewest;
+
+        return sortKind switch
+        {
+            VaultEntrySortKind.NameAscending =>
+                entries
+                    .OrderBy(
+                        entry => entry.Name,
+                        StringComparer.OrdinalIgnoreCase)
+                    .ThenByDescending(
+                        entry => entry.ModifiedUtc),
+
+            VaultEntrySortKind.NameDescending =>
+                entries
+                    .OrderByDescending(
+                        entry => entry.Name,
+                        StringComparer.OrdinalIgnoreCase)
+                    .ThenByDescending(
+                        entry => entry.ModifiedUtc),
+
+            VaultEntrySortKind.CreatedNewest =>
+                entries
+                    .OrderByDescending(
+                        entry => entry.CreatedUtc)
+                    .ThenBy(
+                        entry => entry.Name,
+                        StringComparer.OrdinalIgnoreCase),
+
+            VaultEntrySortKind.CreatedOldest =>
+                entries
+                    .OrderBy(
+                        entry => entry.CreatedUtc)
+                    .ThenBy(
+                        entry => entry.Name,
+                        StringComparer.OrdinalIgnoreCase),
+
+            VaultEntrySortKind.ModifiedOldest =>
+                entries
+                    .OrderBy(
+                        entry => entry.ModifiedUtc)
+                    .ThenBy(
+                        entry => entry.Name,
+                        StringComparer.OrdinalIgnoreCase),
+
+            _ =>
+                entries
+                    .OrderByDescending(
+                        entry => entry.ModifiedUtc)
+                    .ThenBy(
+                        entry => entry.Name,
+                        StringComparer.OrdinalIgnoreCase)
+        };
     }
 
     private void RefreshSessionFlags()
@@ -1114,8 +1342,10 @@ public partial class MainVaultViewModel :
         string statusMessage)
     {
         RefreshSessionFlags();
+
         SaveStatusText =
             $"UNSAVED · {statusMessage}";
+
         ClearError();
     }
 
@@ -1161,8 +1391,10 @@ public partial class MainVaultViewModel :
 
         DialogTitle = title;
         DialogDescription = description;
+
         DialogPrimaryActionText =
             primaryActionText;
+
         IsDialogInputVisible = showInput;
         IsDialogDestructive = isDestructive;
         DialogInput = string.Empty;
@@ -1198,6 +1430,7 @@ public partial class MainVaultViewModel :
 
     private void NotifyCommandStates()
     {
+        NewEntryCommand.NotifyCanExecuteChanged();
         NewFolderCommand.NotifyCanExecuteChanged();
         NewTagCommand.NotifyCanExecuteChanged();
         DeleteFolderCommand.NotifyCanExecuteChanged();
@@ -1222,6 +1455,7 @@ public partial class MainVaultViewModel :
     private enum DialogAction
     {
         None,
+        CreateEntry,
         CreateFolder,
         CreateTag,
         DeleteFolder,

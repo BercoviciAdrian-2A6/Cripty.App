@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -6,9 +7,87 @@ namespace Cripty.ViewModels;
 
 public enum VaultFolderFilterKind
 {
-    AllEntries,
-    Unfiled,
+    Root,
     Folder
+}
+
+public enum VaultEntrySortKind
+{
+    NameAscending,
+    NameDescending,
+    CreatedNewest,
+    CreatedOldest,
+    ModifiedNewest,
+    ModifiedOldest
+}
+
+public sealed class VaultEntrySortOptionViewModel
+{
+    private VaultEntrySortOptionViewModel(
+        VaultEntrySortKind kind,
+        string name)
+    {
+        Kind = kind;
+        Name = name;
+    }
+
+    public VaultEntrySortKind Kind { get; }
+
+    public string Name { get; }
+
+    public static VaultEntrySortOptionViewModel
+        NameAscending
+    { get; } =
+        new(
+            VaultEntrySortKind.NameAscending,
+            "NAME · A–Z");
+
+    public static VaultEntrySortOptionViewModel
+        NameDescending
+    { get; } =
+        new(
+            VaultEntrySortKind.NameDescending,
+            "NAME · Z–A");
+
+    public static VaultEntrySortOptionViewModel
+        CreatedNewest
+    { get; } =
+        new(
+            VaultEntrySortKind.CreatedNewest,
+            "CREATED · NEWEST");
+
+    public static VaultEntrySortOptionViewModel
+        CreatedOldest
+    { get; } =
+        new(
+            VaultEntrySortKind.CreatedOldest,
+            "CREATED · OLDEST");
+
+    public static VaultEntrySortOptionViewModel
+        ModifiedNewest
+    { get; } =
+        new(
+            VaultEntrySortKind.ModifiedNewest,
+            "MODIFIED · NEWEST");
+
+    public static VaultEntrySortOptionViewModel
+        ModifiedOldest
+    { get; } =
+        new(
+            VaultEntrySortKind.ModifiedOldest,
+            "MODIFIED · OLDEST");
+
+    public static IReadOnlyList<
+        VaultEntrySortOptionViewModel> All
+    { get; } =
+        [
+            NameAscending,
+            NameDescending,
+            CreatedNewest,
+            CreatedOldest,
+            ModifiedNewest,
+            ModifiedOldest
+        ];
 }
 
 public partial class VaultFolderListItemViewModel :
@@ -17,6 +96,9 @@ public partial class VaultFolderListItemViewModel :
     private readonly Action<VaultFolderListItemViewModel>
         _select;
 
+    private readonly Action<VaultFolderListItemViewModel>
+        _toggleExpansion;
+
     public VaultFolderListItemViewModel(
         VaultFolderFilterKind kind,
         Guid? folderId,
@@ -24,7 +106,10 @@ public partial class VaultFolderListItemViewModel :
         string name,
         int depth,
         int entryCount,
-        Action<VaultFolderListItemViewModel> select)
+        bool isExpandable,
+        bool isExpanded,
+        Action<VaultFolderListItemViewModel> select,
+        Action<VaultFolderListItemViewModel> toggleExpansion)
     {
         Kind = kind;
         FolderId = folderId;
@@ -32,10 +117,16 @@ public partial class VaultFolderListItemViewModel :
         Name = name;
         IndentWidth = Math.Max(0, depth) * 14;
         EntryCountText = FormatCount(entryCount);
+        IsExpandable = isExpandable;
+        IsExpanded = isExpanded;
 
         _select = select ??
             throw new ArgumentNullException(
                 nameof(select));
+
+        _toggleExpansion = toggleExpansion ??
+            throw new ArgumentNullException(
+                nameof(toggleExpansion));
     }
 
     public VaultFolderFilterKind Kind { get; }
@@ -49,6 +140,17 @@ public partial class VaultFolderListItemViewModel :
     public double IndentWidth { get; }
 
     public string EntryCountText { get; }
+
+    public bool IsExpandable { get; }
+
+    public bool IsExpanded { get; }
+
+    public string ExpansionGlyph =>
+        !IsExpandable
+            ? string.Empty
+            : IsExpanded
+                ? "▾"
+                : "▸";
 
     public bool IsFolder =>
         Kind == VaultFolderFilterKind.Folder;
@@ -64,6 +166,15 @@ public partial class VaultFolderListItemViewModel :
     private void Select()
     {
         _select(this);
+    }
+
+    [RelayCommand]
+    private void ToggleExpansion()
+    {
+        if (IsExpandable)
+        {
+            _toggleExpansion(this);
+        }
     }
 
     internal void SetSelected(
@@ -145,6 +256,7 @@ public partial class VaultEntryListItemViewModel :
         string locationText,
         string tagSummary,
         long revision,
+        DateTimeOffset createdUtc,
         DateTimeOffset modifiedUtc,
         Action<VaultEntryListItemViewModel> select)
     {
@@ -153,8 +265,12 @@ public partial class VaultEntryListItemViewModel :
         LocationText = locationText;
         TagSummary = tagSummary;
         RevisionText = $"REVISION {revision}";
+
+        CreatedText =
+            $"CREAT {createdUtc.ToLocalTime():yyyy-MM-dd HH:mm}";
+
         ModifiedText =
-            $"MODIFIED {modifiedUtc.ToLocalTime():yyyy-MM-dd HH:mm}";
+            $"MODIF {modifiedUtc.ToLocalTime():yyyy-MM-dd HH:mm}";
 
         _select = select ??
             throw new ArgumentNullException(
@@ -170,6 +286,8 @@ public partial class VaultEntryListItemViewModel :
     public string TagSummary { get; }
 
     public string RevisionText { get; }
+
+    public string CreatedText { get; }
 
     public string ModifiedText { get; }
 

@@ -3,7 +3,9 @@
         xmlns:vm="using:Cripty.ViewModels"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="1180" d:DesignHeight="720"
+        mc:Ignorable="d"
+        d:DesignWidth="1180"
+        d:DesignHeight="720"
         x:Class="Cripty.Views.MainWindow"
         x:DataType="vm:MainViewModel"
         Width="1180"
@@ -14,13 +16,12 @@
         Title="Cripty">
 
     <Design.DataContext>
-        <!-- This only sets the DataContext for the previewer in an IDE,
-             to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
         <vm:MainViewModel />
     </Design.DataContext>
 
     <ContentControl Content="{Binding CurrentPage}"
                     HorizontalContentAlignment="Stretch"
-                    VerticalContentAlignment="Stretch" />
+                    VerticalContentAlignment="Stretch"
+                    ClipToBounds="True" />
 
 </Window>

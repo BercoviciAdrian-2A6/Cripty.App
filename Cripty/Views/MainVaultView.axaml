@@ -2,7 +2,19 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Cripty.ViewModels"
              x:Class="Cripty.Views.MainVaultView"
-             x:DataType="vm:MainVaultViewModel">
+             x:DataType="vm:MainVaultViewModel"
+             HorizontalAlignment="Stretch"
+             VerticalAlignment="Stretch">
+
+    <UserControl.Resources>
+        <ControlTheme x:Key="StretchingItemContainerTheme"
+                      TargetType="ContentPresenter">
+            <Setter Property="HorizontalAlignment"
+                    Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment"
+                    Value="Stretch" />
+        </ControlTheme>
+    </UserControl.Resources>
 
     <UserControl.Styles>
         <Style Selector="Button.sidebar-action">
@@ -12,6 +24,74 @@
                     Value="9" />
             <Setter Property="FontWeight"
                     Value="SemiBold" />
+        </Style>
+
+        <Style Selector="Button.folder-toggle">
+            <Setter Property="Width"
+                    Value="18" />
+            <Setter Property="Height"
+                    Value="24" />
+            <Setter Property="MinWidth"
+                    Value="0" />
+            <Setter Property="Padding"
+                    Value="0" />
+            <Setter Property="Background"
+                    Value="Transparent" />
+            <Setter Property="BorderBrush"
+                    Value="Transparent" />
+        </Style>
+
+        <Style Selector="Button.folder-toggle /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background"
+                    Value="Transparent" />
+        </Style>
+
+        <Style Selector="Button.folder-toggle:pointerover">
+            <Setter Property="Background"
+                    Value="#173322" />
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource CriptyBorderBrightBrush}" />
+        </Style>
+
+        <Style Selector="Button.folder-toggle:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background"
+                    Value="#173322" />
+        </Style>
+
+        <Style Selector="ComboBox.entry-sort">
+            <Setter Property="Background"
+                    Value="#09150F" />
+            <Setter Property="Foreground"
+                    Value="{StaticResource CriptyTextBrush}" />
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource CriptyBorderBrush}" />
+            <Setter Property="BorderThickness"
+                    Value="1" />
+            <Setter Property="CornerRadius"
+                    Value="3" />
+            <Setter Property="Padding"
+                    Value="11,9" />
+        </Style>
+
+        <Style Selector="ComboBox.entry-sort:pointerover">
+            <Setter Property="Background"
+                    Value="{StaticResource CriptySurfaceRaisedBrush}" />
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource CriptyBorderBrightBrush}" />
+        </Style>
+
+        <Style Selector="ComboBoxItem:pointerover">
+            <Setter Property="Background"
+                    Value="#173322" />
+            <Setter Property="Foreground"
+                    Value="{StaticResource CriptyTextBrush}" />
+        </Style>
+
+        <Style Selector="ComboBoxItem:selected">
+            <Setter Property="Background"
+                    Value="{StaticResource CriptyAccentDarkBrush}" />
+            <Setter Property="Foreground"
+                    Value="{StaticResource CriptyTextBrush}" />
         </Style>
 
         <Style Selector="Button.vault-nav">
@@ -172,7 +252,9 @@
     </UserControl.Styles>
 
     <Grid Background="{StaticResource CriptyBackgroundBrush}"
-          RowDefinitions="Auto,*">
+          RowDefinitions="Auto,*"
+          MinHeight="0"
+          ClipToBounds="True">
 
         <!-- Vault toolbar -->
         <Border Grid.Row="0"
@@ -180,7 +262,7 @@
                 BorderBrush="{StaticResource CriptyBorderBrush}"
                 BorderThickness="0,0,0,1">
 
-            <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+            <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto">
                 <StackPanel Spacing="2">
                     <TextBlock Text="CRIPTY"
                                FontSize="22"
@@ -234,6 +316,18 @@
 
                 <Button Grid.Column="3"
                         Classes="ghost"
+                        Command="{Binding RequestLockVaultCommand}"
+                        Margin="0,0,8,0"
+                        VerticalAlignment="Center">
+
+                    <TextBlock Text="LOCK VAULT"
+                               FontSize="10"
+                               FontWeight="SemiBold"
+                               LetterSpacing="1.1" />
+                </Button>
+
+                <Button Grid.Column="4"
+                        Classes="ghost"
                         Command="{Binding MoreOptionsCommand}"
                         VerticalAlignment="Center">
 
@@ -247,7 +341,9 @@
 
         <!-- Browser -->
         <Grid Grid.Row="1"
-              RowDefinitions="Auto,*">
+              RowDefinitions="Auto,*"
+              MinHeight="0"
+              ClipToBounds="True">
 
             <Border Grid.Row="0"
                     IsVisible="{Binding HasError}"
@@ -264,16 +360,24 @@
             </Border>
 
             <Grid Grid.Row="1"
-                  ColumnDefinitions="300,*">
+                  ColumnDefinitions="300,*"
+                  MinHeight="0"
+                  ClipToBounds="True">
 
                 <!-- Folder and tag navigation -->
                 <Border Grid.Column="0"
                         BorderBrush="{StaticResource CriptyBorderBrush}"
                         BorderThickness="0,0,1,0">
 
-                    <Grid RowDefinitions="*,*">
+                    <Grid RowDefinitions="*,*"
+                          MinHeight="0"
+                          ClipToBounds="True">
+
+                        <!-- Folders -->
                         <Grid Grid.Row="0"
-                              RowDefinitions="Auto,*">
+                              RowDefinitions="Auto,*"
+                              MinHeight="0"
+                              ClipToBounds="True">
 
                             <Border Grid.Row="0"
                                     Padding="18,15"
@@ -309,48 +413,67 @@
 
                             <ScrollViewer Grid.Row="1"
                                           Padding="10"
+                                          MinHeight="0"
+                                          VerticalAlignment="Stretch"
+                                          AllowAutoHide="False"
                                           HorizontalScrollBarVisibility="Disabled"
-                                          VerticalScrollBarVisibility="Auto">
+                                          VerticalScrollBarVisibility="Visible">
 
-                                <ItemsControl ItemsSource="{Binding FolderItems}">
+                                <ItemsControl ItemsSource="{Binding FolderItems}"
+                                              HorizontalAlignment="Stretch"
+                                              ItemContainerTheme="{StaticResource StretchingItemContainerTheme}">
+
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate x:DataType="vm:VaultFolderListItemViewModel">
-                                            <Button Classes="vault-nav"
-                                                    Classes.selected="{Binding IsSelected}"
-                                                    Command="{Binding SelectCommand}">
+                                            <Grid>
+                                                <Button Classes="vault-nav"
+                                                        Classes.selected="{Binding IsSelected}"
+                                                        Command="{Binding SelectCommand}">
 
-                                                <Grid ColumnDefinitions="Auto,*,Auto">
-                                                    <Border Width="{Binding IndentWidth}" />
+                                                    <Grid ColumnDefinitions="Auto,18,*,Auto">
+                                                        <Border Width="{Binding IndentWidth}" />
 
-                                                    <StackPanel Grid.Column="1"
-                                                                Orientation="Horizontal"
-                                                                Spacing="7">
-                                                        <TextBlock Text="▸"
-                                                                   FontSize="10"
-                                                                   Foreground="{StaticResource CriptyAccentBrush}" />
-
-                                                        <TextBlock Text="{Binding Name}"
+                                                        <TextBlock Grid.Column="2"
+                                                                   Text="{Binding Name}"
                                                                    FontSize="11"
                                                                    FontWeight="SemiBold"
                                                                    TextTrimming="CharacterEllipsis" />
-                                                    </StackPanel>
 
-                                                    <TextBlock Grid.Column="2"
-                                                               Text="{Binding EntryCountText}"
-                                                               Margin="8,0,0,0"
-                                                               FontSize="8"
-                                                               LetterSpacing="0.7"
-                                                               Foreground="{StaticResource CriptyTextMutedBrush}" />
+                                                        <TextBlock Grid.Column="3"
+                                                                   Text="{Binding EntryCountText}"
+                                                                   Margin="8,0,0,0"
+                                                                   FontSize="8"
+                                                                   LetterSpacing="0.7"
+                                                                   Foreground="{StaticResource CriptyTextMutedBrush}" />
+                                                    </Grid>
+                                                </Button>
+
+                                                <Grid ColumnDefinitions="Auto,18,*">
+                                                    <Border Width="{Binding IndentWidth}" />
+
+                                                    <Button Grid.Column="1"
+                                                            Classes="folder-toggle"
+                                                            IsVisible="{Binding IsExpandable}"
+                                                            Command="{Binding ToggleExpansionCommand}"
+                                                            ToolTip.Tip="Expand or collapse folder">
+
+                                                        <TextBlock Text="{Binding ExpansionGlyph}"
+                                                                   FontSize="10"
+                                                                   Foreground="{StaticResource CriptyAccentBrush}" />
+                                                    </Button>
                                                 </Grid>
-                                            </Button>
+                                            </Grid>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
                             </ScrollViewer>
                         </Grid>
 
+                        <!-- Tags -->
                         <Grid Grid.Row="1"
-                              RowDefinitions="Auto,*">
+                              RowDefinitions="Auto,*"
+                              MinHeight="0"
+                              ClipToBounds="True">
 
                             <Border Grid.Row="0"
                                     Padding="18,15"
@@ -386,10 +509,16 @@
 
                             <ScrollViewer Grid.Row="1"
                                           Padding="10"
+                                          MinHeight="0"
+                                          VerticalAlignment="Stretch"
+                                          AllowAutoHide="False"
                                           HorizontalScrollBarVisibility="Disabled"
-                                          VerticalScrollBarVisibility="Auto">
+                                          VerticalScrollBarVisibility="Visible">
 
-                                <ItemsControl ItemsSource="{Binding TagItems}">
+                                <ItemsControl ItemsSource="{Binding TagItems}"
+                                              HorizontalAlignment="Stretch"
+                                              ItemContainerTheme="{StaticResource StretchingItemContainerTheme}">
+
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate x:DataType="vm:VaultTagListItemViewModel">
                                             <Button Classes="vault-nav"
@@ -399,6 +528,7 @@
                                                 <Grid ColumnDefinitions="*,Auto">
                                                     <StackPanel Orientation="Horizontal"
                                                                 Spacing="7">
+
                                                         <TextBlock Text="#"
                                                                    FontSize="11"
                                                                    FontWeight="Bold"
@@ -428,99 +558,158 @@
 
                 <!-- Entry list -->
                 <Grid Grid.Column="1"
-                      RowDefinitions="Auto,*">
+                      RowDefinitions="Auto,*"
+                      MinHeight="0"
+                      ClipToBounds="True">
 
+                    <!-- Entry toolbar -->
                     <Border Grid.Row="0"
                             Padding="24,18"
                             BorderBrush="{StaticResource CriptyBorderBrush}"
                             BorderThickness="0,0,0,1">
 
-                        <Grid ColumnDefinitions="*,Auto,Auto">
-                            <StackPanel Spacing="4">
-                                <TextBlock Text="{Binding CurrentFilterTitle}"
-                                           FontSize="19"
-                                           FontWeight="SemiBold"
-                                           LetterSpacing="1" />
+                        <Grid RowDefinitions="Auto,Auto">
+                            <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+                                <StackPanel Spacing="4">
+                                    <TextBlock Text="{Binding CurrentFilterTitle}"
+                                               FontSize="19"
+                                               FontWeight="SemiBold"
+                                               LetterSpacing="1" />
 
-                                <TextBlock Text="{Binding CurrentFilterDescription}"
-                                           FontSize="9"
-                                           LetterSpacing="1.2"
-                                           Foreground="{StaticResource CriptyTextMutedBrush}" />
-                            </StackPanel>
+                                    <TextBlock Text="{Binding CurrentFilterDescription}"
+                                               FontSize="9"
+                                               LetterSpacing="1.2"
+                                               Foreground="{StaticResource CriptyTextMutedBrush}" />
+                                </StackPanel>
 
-                            <Border Grid.Column="1"
-                                    Margin="12,0"
-                                    Padding="10,6"
-                                    VerticalAlignment="Center"
-                                    Background="#0A1C12"
-                                    BorderBrush="{StaticResource CriptyBorderBrush}"
-                                    BorderThickness="1"
-                                    CornerRadius="3">
+                                <Border Grid.Column="1"
+                                        Margin="12,0"
+                                        Padding="10,6"
+                                        VerticalAlignment="Center"
+                                        Background="#0A1C12"
+                                        BorderBrush="{StaticResource CriptyBorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="3">
 
-                                <TextBlock Text="{Binding EntryCountText}"
-                                           FontSize="9"
-                                           FontWeight="SemiBold"
-                                           LetterSpacing="1"
-                                           Foreground="{StaticResource CriptyTextMutedBrush}" />
-                            </Border>
+                                    <TextBlock Text="{Binding EntryCountText}"
+                                               FontSize="9"
+                                               FontWeight="SemiBold"
+                                               LetterSpacing="1"
+                                               Foreground="{StaticResource CriptyTextMutedBrush}" />
+                                </Border>
 
-                            <Button Grid.Column="2"
-                                    Classes="danger"
-                                    Command="{Binding DeleteEntryCommand}"
-                                    VerticalAlignment="Center">
+                                <Button Grid.Column="2"
+                                        Classes="primary"
+                                        Command="{Binding NewEntryCommand}"
+                                        Margin="0,0,8,0"
+                                        VerticalAlignment="Center">
 
-                                <TextBlock Text="DELETE ENTRY"
-                                           FontSize="9"
-                                           FontWeight="SemiBold"
-                                           LetterSpacing="1" />
-                            </Button>
+                                    <TextBlock Text="ADD ENTRY"
+                                               FontSize="9"
+                                               FontWeight="SemiBold"
+                                               LetterSpacing="1" />
+                                </Button>
+
+                                <Button Grid.Column="3"
+                                        Classes="danger"
+                                        Command="{Binding DeleteEntryCommand}"
+                                        VerticalAlignment="Center">
+
+                                    <TextBlock Text="DELETE ENTRY"
+                                               FontSize="9"
+                                               FontWeight="SemiBold"
+                                               LetterSpacing="1" />
+                                </Button>
+                            </Grid>
+
+                            <Grid Grid.Row="1"
+                                  Margin="0,14,0,0"
+                                  ColumnDefinitions="*,220">
+
+                                <TextBox Text="{Binding SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                         MaxLength="200"
+                                         Watermark="Search entries by name" />
+
+                                <ComboBox Grid.Column="1"
+                                          Classes="entry-sort"
+                                          Margin="10,0,0,0"
+                                          ItemsSource="{Binding SortOptions}"
+                                          SelectedItem="{Binding SelectedSortOption, Mode=TwoWay}"
+                                          HorizontalContentAlignment="Stretch">
+
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:VaultEntrySortOptionViewModel">
+                                            <TextBlock Text="{Binding Name}"
+                                                       FontSize="9"
+                                                       FontWeight="SemiBold"
+                                                       LetterSpacing="0.8" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </Grid>
                         </Grid>
                     </Border>
 
-                    <Grid Grid.Row="1">
-                        <ScrollViewer Padding="24"
+                    <!-- Scrollable entries -->
+                    <Grid Grid.Row="1"
+                          ColumnDefinitions="*,220"
+                          MinHeight="0"
+                          ClipToBounds="True">
+
+                        <ScrollViewer Grid.Column="0"
+                                      Padding="24"
+                                      MinHeight="0"
+                                      VerticalAlignment="Stretch"
+                                      AllowAutoHide="False"
                                       HorizontalScrollBarVisibility="Disabled"
-                                      VerticalScrollBarVisibility="Auto"
+                                      VerticalScrollBarVisibility="Visible"
                                       IsVisible="{Binding HasEntries}">
 
-                            <ItemsControl ItemsSource="{Binding EntryItems}">
+                            <ItemsControl ItemsSource="{Binding EntryItems}"
+                                          HorizontalAlignment="Stretch"
+                                          ItemContainerTheme="{StaticResource StretchingItemContainerTheme}">
+
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate x:DataType="vm:VaultEntryListItemViewModel">
                                         <Button Classes="entry-row"
                                                 Classes.selected="{Binding IsSelected}"
+                                                HorizontalAlignment="Stretch"
                                                 Command="{Binding SelectCommand}">
 
-                                            <Grid ColumnDefinitions="*,Auto"
-                                                  RowDefinitions="Auto,Auto">
+                                            <Grid ColumnDefinitions="*,Auto">
                                                 <StackPanel Spacing="5">
                                                     <TextBlock Text="{Binding Name}"
                                                                FontSize="14"
                                                                FontWeight="SemiBold"
                                                                TextTrimming="CharacterEllipsis" />
 
-                                                    <StackPanel Orientation="Horizontal"
-                                                                Spacing="14">
-                                                        <TextBlock Text="{Binding LocationText}"
-                                                                   FontSize="9"
-                                                                   LetterSpacing="0.7"
-                                                                   Foreground="{StaticResource CriptyTextMutedBrush}" />
+                                                    <TextBlock Text="{Binding LocationText}"
+                                                               FontSize="9"
+                                                               LetterSpacing="0.7"
+                                                               Foreground="{StaticResource CriptyTextMutedBrush}" />
 
-                                                        <TextBlock Text="{Binding TagSummary}"
-                                                                   FontSize="9"
-                                                                   LetterSpacing="0.7"
-                                                                   Foreground="{StaticResource CriptyTextMutedBrush}"
-                                                                   TextTrimming="CharacterEllipsis" />
-                                                    </StackPanel>
+                                                    <TextBlock Text="{Binding TagSummary}"
+                                                               FontSize="9"
+                                                               LetterSpacing="0.7"
+                                                               Foreground="{StaticResource CriptyTextMutedBrush}"
+                                                               TextTrimming="CharacterEllipsis" />
                                                 </StackPanel>
 
                                                 <StackPanel Grid.Column="1"
                                                             HorizontalAlignment="Right"
                                                             Spacing="5">
+
                                                     <TextBlock Text="{Binding RevisionText}"
                                                                HorizontalAlignment="Right"
                                                                FontSize="9"
                                                                LetterSpacing="0.7"
                                                                Foreground="{StaticResource CriptyAccentBrush}" />
+
+                                                    <TextBlock Text="{Binding CreatedText}"
+                                                               HorizontalAlignment="Right"
+                                                               FontSize="9"
+                                                               LetterSpacing="0.7"
+                                                               Foreground="{StaticResource CriptyTextMutedBrush}" />
 
                                                     <TextBlock Text="{Binding ModifiedText}"
                                                                HorizontalAlignment="Right"
@@ -535,18 +724,20 @@
                             </ItemsControl>
                         </ScrollViewer>
 
-                        <StackPanel IsVisible="{Binding HasNoEntries}"
+                        <StackPanel Grid.ColumnSpan="2"
+                                    IsVisible="{Binding HasNoEntries}"
                                     Width="420"
                                     HorizontalAlignment="Center"
                                     VerticalAlignment="Center"
                                     Spacing="10">
+
                             <TextBlock Text="NO ENTRIES MATCH THIS VIEW"
                                        HorizontalAlignment="Center"
                                        FontSize="15"
                                        FontWeight="SemiBold"
                                        LetterSpacing="1.2" />
 
-                            <TextBlock Text="Choose another folder or tag. Entry creation and editing will use this panel in the next step."
+                            <TextBlock Text="Choose another folder or tag, adjust the search, or add a new entry."
                                        HorizontalAlignment="Center"
                                        TextAlignment="Center"
                                        FontSize="11"
@@ -641,37 +832,21 @@
                         </StackPanel>
                     </Border>
 
-                    <Grid ColumnDefinitions="*,*">
-                        <StackPanel Margin="0,0,6,0"
-                                    Spacing="6">
-                            <Button IsEnabled="False"
-                                    HorizontalContentAlignment="Center">
-
-                                <TextBlock Text="CHANGE PASSWORD"
-                                           FontSize="10"
-                                           FontWeight="SemiBold"
-                                           LetterSpacing="1" />
-                            </Button>
-
-                            <TextBlock Text="Password-change flow will be wired here."
-                                       HorizontalAlignment="Center"
-                                       FontSize="9"
-                                       Foreground="{StaticResource CriptyTextMutedBrush}" />
-                        </StackPanel>
-
-                        <Button Grid.Column="1"
-                                Classes="danger"
-                                Command="{Binding RequestLockVaultCommand}"
-                                Margin="6,0,0,0"
-                                VerticalAlignment="Top"
+                    <StackPanel Spacing="6">
+                        <Button IsEnabled="False"
                                 HorizontalContentAlignment="Center">
 
-                            <TextBlock Text="LOCK VAULT"
+                            <TextBlock Text="CHANGE PASSWORD"
                                        FontSize="10"
                                        FontWeight="SemiBold"
                                        LetterSpacing="1" />
                         </Button>
-                    </Grid>
+
+                        <TextBlock Text="Password-change flow will be wired here."
+                                   HorizontalAlignment="Center"
+                                   FontSize="9"
+                                   Foreground="{StaticResource CriptyTextMutedBrush}" />
+                    </StackPanel>
                 </StackPanel>
             </Border>
         </Border>
@@ -708,6 +883,7 @@
 
                     <StackPanel IsVisible="{Binding IsDialogInputVisible}"
                                 Spacing="7">
+
                         <TextBlock Text="NAME"
                                    FontSize="9"
                                    FontWeight="SemiBold"

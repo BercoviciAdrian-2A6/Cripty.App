@@ -4,11 +4,13 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
+using System.Text;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Cripty.Application.Vaults;
 using Cripty.Core.Vaults;
+using Cripty.Cryptography.Keys;
 
 namespace Cripty.ViewModels;
 
@@ -79,7 +81,7 @@ public partial class MainVaultViewModel :
     public string ManifestSchemaText { get; }
 
     public ObservableCollection<
-        VaultFolderListItemViewModel> FolderItems
+        VaultFolderTreeItemViewModel> FolderItems
     { get; } = [];
 
     public ObservableCollection<
@@ -202,6 +204,55 @@ public partial class MainVaultViewModel :
     }
 
     [ObservableProperty]
+    public partial bool IsPasswordChangeOpen
+    {
+        get;
+        private set;
+    }
+
+    [ObservableProperty]
+    public partial bool IsChangingPassword
+    {
+        get;
+        private set;
+    }
+
+    [ObservableProperty]
+    public partial string NewPassword
+    {
+        get;
+        set;
+    } = string.Empty;
+
+    [ObservableProperty]
+    public partial string ConfirmNewPassword
+    {
+        get;
+        set;
+    } = string.Empty;
+
+    [ObservableProperty]
+    public partial bool IsNewPasswordVisible
+    {
+        get;
+        private set;
+    }
+
+    [ObservableProperty]
+    public partial bool IsConfirmNewPasswordVisible
+    {
+        get;
+        private set;
+    }
+
+    [ObservableProperty]
+    public partial string? PasswordChangeErrorMessage
+    {
+        get;
+        private set;
+    }
+
+    [ObservableProperty]
     public partial bool IsDialogOpen
     {
         get;
@@ -261,6 +312,38 @@ public partial class MainVaultViewModel :
         !string.IsNullOrWhiteSpace(
             DialogErrorMessage);
 
+    public bool HasPasswordChangeError =>
+        !string.IsNullOrWhiteSpace(
+            PasswordChangeErrorMessage);
+
+    public string NewPasswordCharacterCountText =>
+        FormatCharacterCount(
+            NewPassword.Length);
+
+    public string ConfirmNewPasswordCharacterCountText =>
+        FormatCharacterCount(
+            ConfirmNewPassword.Length);
+
+    public string NewPasswordVisibilityActionText =>
+        IsNewPasswordVisible
+            ? "HIDE"
+            : "SHOW";
+
+    public string ConfirmNewPasswordVisibilityActionText =>
+        IsConfirmNewPasswordVisible
+            ? "HIDE"
+            : "SHOW";
+
+    public string PasswordChangeActionText =>
+        IsChangingPassword
+            ? "CHANGING..."
+            : "CHANGE PASSWORD";
+
+    public string PasswordChangeAvailabilityText =>
+        HasSaveWork
+            ? "Save all pending changes before changing the password."
+            : "Rewraps the vault key with a fresh salt. Entry files are not re-encrypted.";
+
     public string SaveActionText =>
         IsSaving
             ? "SAVING..."
@@ -274,7 +357,8 @@ public partial class MainVaultViewModel :
     private bool CanMutateVault()
     {
         return !IsBusy &&
-               !IsDialogOpen;
+               !IsDialogOpen &&
+               !IsPasswordChangeOpen;
     }
 
     private bool CanDeleteFolder()
@@ -314,6 +398,31 @@ public partial class MainVaultViewModel :
                    DialogInput);
     }
 
+    private bool CanOpenPasswordChange()
+    {
+        return IsMoreOptionsOpen &&
+               !IsBusy &&
+               !HasSaveWork &&
+               !IsDialogOpen &&
+               !IsPasswordChangeOpen;
+    }
+
+    private bool CanConfirmPasswordChange()
+    {
+        return IsPasswordChangeOpen &&
+               !IsBusy &&
+               !string.IsNullOrEmpty(
+                   NewPassword) &&
+               !string.IsNullOrEmpty(
+                   ConfirmNewPassword);
+    }
+
+    private bool CanInteractWithPasswordChange()
+    {
+        return IsPasswordChangeOpen &&
+               !IsBusy;
+    }
+
     partial void OnIsBusyChanged(
         bool value)
     {
@@ -331,6 +440,10 @@ public partial class MainVaultViewModel :
         bool value)
     {
         SaveCommand.NotifyCanExecuteChanged();
+        OpenPasswordChangeCommand.NotifyCanExecuteChanged();
+
+        OnPropertyChanged(
+            nameof(PasswordChangeAvailabilityText));
     }
 
     partial void OnHasEntriesChanged(
@@ -357,6 +470,71 @@ public partial class MainVaultViewModel :
     {
         OnPropertyChanged(
             nameof(HasError));
+    }
+
+    partial void OnIsMoreOptionsOpenChanged(
+        bool value)
+    {
+        OpenPasswordChangeCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnIsPasswordChangeOpenChanged(
+        bool value)
+    {
+        NotifyCommandStates();
+        ConfirmPasswordChangeCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnIsChangingPasswordChanged(
+        bool value)
+    {
+        OnPropertyChanged(
+            nameof(PasswordChangeActionText));
+
+        ConfirmPasswordChangeCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnNewPasswordChanged(
+        string value)
+    {
+        ClearPasswordChangeError();
+
+        OnPropertyChanged(
+            nameof(NewPasswordCharacterCountText));
+
+        ConfirmPasswordChangeCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnConfirmNewPasswordChanged(
+        string value)
+    {
+        ClearPasswordChangeError();
+
+        OnPropertyChanged(
+            nameof(ConfirmNewPasswordCharacterCountText));
+
+        ConfirmPasswordChangeCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnIsNewPasswordVisibleChanged(
+        bool value)
+    {
+        OnPropertyChanged(
+            nameof(NewPasswordVisibilityActionText));
+    }
+
+    partial void OnIsConfirmNewPasswordVisibleChanged(
+        bool value)
+    {
+        OnPropertyChanged(
+            nameof(ConfirmNewPasswordVisibilityActionText));
+    }
+
+    partial void OnPasswordChangeErrorMessageChanged(
+        string? value)
+    {
+        OnPropertyChanged(
+            nameof(HasPasswordChangeError));
     }
 
     partial void OnIsDialogOpenChanged(
@@ -517,11 +695,119 @@ public partial class MainVaultViewModel :
         IsMoreOptionsOpen = true;
     }
 
+    [RelayCommand(CanExecute = nameof(CanOpenPasswordChange))]
+    private void OpenPasswordChange()
+    {
+        ClearPasswordChangeInputs();
+        ClearPasswordChangeError();
+        IsPasswordChangeOpen = true;
+    }
+
+    [RelayCommand(
+        CanExecute = nameof(CanInteractWithPasswordChange))]
+    private void CancelPasswordChange()
+    {
+        if (!IsBusy)
+        {
+            ClosePasswordChange();
+        }
+    }
+
+    [RelayCommand(
+        CanExecute = nameof(CanInteractWithPasswordChange))]
+    private void ToggleNewPasswordVisibility()
+    {
+        if (!IsBusy)
+        {
+            IsNewPasswordVisible =
+                !IsNewPasswordVisible;
+        }
+    }
+
+    [RelayCommand(
+        CanExecute = nameof(CanInteractWithPasswordChange))]
+    private void ToggleConfirmNewPasswordVisibility()
+    {
+        if (!IsBusy)
+        {
+            IsConfirmNewPasswordVisible =
+                !IsConfirmNewPasswordVisible;
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanConfirmPasswordChange))]
+    private async Task ConfirmPasswordChangeAsync()
+    {
+        ClearPasswordChangeError();
+
+        if (!string.Equals(
+                NewPassword,
+                ConfirmNewPassword,
+                StringComparison.Ordinal))
+        {
+            PasswordChangeErrorMessage =
+                "The two passwords do not match.";
+
+            return;
+        }
+
+        if (Encoding.UTF8.GetByteCount(
+                NewPassword) >
+            PasswordWrappingKeyDeriver
+                .MaximumPasswordByteLength)
+        {
+            PasswordChangeErrorMessage =
+                "The password is too large when encoded as UTF-8. " +
+                "The maximum is " +
+                $"{PasswordWrappingKeyDeriver.MaximumPasswordByteLength} bytes.";
+
+            return;
+        }
+
+        string submittedPassword =
+            NewPassword;
+
+        ClearPasswordChangeInputs();
+        ClearError();
+
+        IsBusy = true;
+        IsChangingPassword = true;
+
+        try
+        {
+            await Task.Run(() =>
+                _session.ChangePasswordAsync(
+                    submittedPassword,
+                    Argon2idParameters.Recommended));
+
+            ClosePasswordChange();
+            IsMoreOptionsOpen = false;
+
+            SaveStatusText =
+                $"PASSWORD CHANGED {DateTime.Now:HH:mm:ss} · " +
+                $"GENERATION {_session.ManifestGeneration}";
+        }
+        catch (Exception exception)
+            when (IsExpectedOperationFailure(
+                exception))
+        {
+            PasswordChangeErrorMessage =
+                exception.Message;
+        }
+        finally
+        {
+            submittedPassword = string.Empty;
+            IsChangingPassword = false;
+            IsBusy = false;
+        }
+    }
+
     [RelayCommand]
     private void CloseMoreOptions()
     {
         if (!IsBusy)
         {
+            ClosePasswordChange();
             IsMoreOptionsOpen = false;
         }
     }
@@ -817,7 +1103,8 @@ public partial class MainVaultViewModel :
         _selectedFolder = folder;
 
         foreach (VaultFolderListItemViewModel item
-                 in FolderItems)
+                 in FolderItems.OfType<
+                     VaultFolderListItemViewModel>())
         {
             item.SetSelected(
                 ReferenceEquals(item, folder));
@@ -1025,7 +1312,8 @@ public partial class MainVaultViewModel :
             FindTagSelection(tagId);
 
         foreach (VaultFolderListItemViewModel item
-                 in FolderItems)
+                 in FolderItems.OfType<
+                     VaultFolderListItemViewModel>())
         {
             item.SetSelected(
                 ReferenceEquals(
@@ -1071,7 +1359,6 @@ public partial class MainVaultViewModel :
                 entries.Count,
                 isExpandable: false,
                 isExpanded: true,
-                containedEntries: [],
                 SelectFolder,
                 ToggleFolderExpansion));
 
@@ -1095,14 +1382,15 @@ public partial class MainVaultViewModel :
             entrySessionStates,
         HashSet<Guid> visited)
     {
-        IEnumerable<FolderDescriptor> children =
+        FolderDescriptor[] children =
             folders
                 .Where(folder =>
                     folder.ParentFolderId ==
                     parentFolderId)
                 .OrderBy(
                     folder => folder.Name,
-                    StringComparer.OrdinalIgnoreCase);
+                    StringComparer.OrdinalIgnoreCase)
+                .ToArray();
 
         foreach (FolderDescriptor folder in children)
         {
@@ -1157,7 +1445,6 @@ public partial class MainVaultViewModel :
                     isExpanded:
                         _expandedFolderIds.Contains(
                             folder.FolderId),
-                    containedEntryItems,
                     SelectFolder,
                     ToggleFolderExpansion));
 
@@ -1171,6 +1458,12 @@ public partial class MainVaultViewModel :
                     entries,
                     entrySessionStates,
                     visited);
+
+                foreach (VaultFolderEntryListItemViewModel entry
+                         in containedEntryItems)
+                {
+                    FolderItems.Add(entry);
+                }
             }
         }
     }
@@ -1209,14 +1502,18 @@ public partial class MainVaultViewModel :
             Guid? folderId)
     {
         VaultFolderListItemViewModel? match =
-            FolderItems.FirstOrDefault(item =>
-                item.Kind == kind &&
-                item.FolderId == folderId);
+            FolderItems
+                .OfType<VaultFolderListItemViewModel>()
+                .FirstOrDefault(item =>
+                    item.Kind == kind &&
+                    item.FolderId == folderId);
 
         return match ??
-               FolderItems.First(item =>
-                   item.Kind ==
-                   VaultFolderFilterKind.Root);
+               FolderItems
+                   .OfType<VaultFolderListItemViewModel>()
+                   .First(item =>
+                       item.Kind ==
+                       VaultFolderFilterKind.Root);
     }
 
     private VaultTagListItemViewModel
@@ -1391,8 +1688,8 @@ public partial class MainVaultViewModel :
         Guid? selectedEntryId)
     {
         foreach (VaultFolderEntryListItemViewModel entry in
-                 FolderItems.SelectMany(folder =>
-                     folder.ContainedEntries))
+                 FolderItems.OfType<
+                     VaultFolderEntryListItemViewModel>())
         {
             entry.SetSelected(
                 entry.EntryId ==
@@ -1546,6 +1843,21 @@ public partial class MainVaultViewModel :
         IsDialogDestructive = false;
     }
 
+    private void ClosePasswordChange()
+    {
+        IsPasswordChangeOpen = false;
+        ClearPasswordChangeInputs();
+        ClearPasswordChangeError();
+    }
+
+    private void ClearPasswordChangeInputs()
+    {
+        NewPassword = string.Empty;
+        ConfirmNewPassword = string.Empty;
+        IsNewPasswordVisible = false;
+        IsConfirmNewPasswordVisible = false;
+    }
+
     private void ClearError()
     {
         if (ErrorMessage is not null)
@@ -1562,6 +1874,14 @@ public partial class MainVaultViewModel :
         }
     }
 
+    private void ClearPasswordChangeError()
+    {
+        if (PasswordChangeErrorMessage is not null)
+        {
+            PasswordChangeErrorMessage = null;
+        }
+    }
+
     private void NotifyCommandStates()
     {
         NewEntryCommand.NotifyCanExecuteChanged();
@@ -1573,6 +1893,19 @@ public partial class MainVaultViewModel :
         SaveCommand.NotifyCanExecuteChanged();
         MoreOptionsCommand.NotifyCanExecuteChanged();
         ConfirmDialogCommand.NotifyCanExecuteChanged();
+        OpenPasswordChangeCommand.NotifyCanExecuteChanged();
+        ConfirmPasswordChangeCommand.NotifyCanExecuteChanged();
+        CancelPasswordChangeCommand.NotifyCanExecuteChanged();
+        ToggleNewPasswordVisibilityCommand.NotifyCanExecuteChanged();
+        ToggleConfirmNewPasswordVisibilityCommand.NotifyCanExecuteChanged();
+    }
+
+    private static string FormatCharacterCount(
+        int characterCount)
+    {
+        return characterCount == 1
+            ? "1 CHARACTER ENTERED"
+            : $"{characterCount} CHARACTERS ENTERED";
     }
 
     private static bool IsExpectedOperationFailure(

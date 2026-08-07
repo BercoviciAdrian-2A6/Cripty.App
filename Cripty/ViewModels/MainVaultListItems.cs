@@ -91,8 +91,13 @@ public sealed class VaultEntrySortOptionViewModel
         ];
 }
 
-public partial class VaultFolderListItemViewModel :
+public abstract class VaultFolderTreeItemViewModel :
     ViewModelBase
+{
+}
+
+public partial class VaultFolderListItemViewModel :
+    VaultFolderTreeItemViewModel
 {
     private readonly Action<VaultFolderListItemViewModel>
         _select;
@@ -109,8 +114,6 @@ public partial class VaultFolderListItemViewModel :
         int entryCount,
         bool isExpandable,
         bool isExpanded,
-        IReadOnlyList<VaultFolderEntryListItemViewModel>
-            containedEntries,
         Action<VaultFolderListItemViewModel> select,
         Action<VaultFolderListItemViewModel> toggleExpansion)
     {
@@ -122,9 +125,6 @@ public partial class VaultFolderListItemViewModel :
         EntryCountText = FormatCount(entryCount);
         IsExpandable = isExpandable;
         IsExpanded = isExpanded;
-        ContainedEntries = containedEntries ??
-            throw new ArgumentNullException(
-                nameof(containedEntries));
 
         _select = select ??
             throw new ArgumentNullException(
@@ -150,14 +150,6 @@ public partial class VaultFolderListItemViewModel :
     public bool IsExpandable { get; }
 
     public bool IsExpanded { get; }
-
-    public IReadOnlyList<
-        VaultFolderEntryListItemViewModel> ContainedEntries
-    { get; }
-
-    public bool ShowsContainedEntries =>
-        IsExpanded &&
-        ContainedEntries.Count > 0;
 
     public string ExpansionGlyph =>
         !IsExpandable
@@ -207,7 +199,7 @@ public partial class VaultFolderListItemViewModel :
 }
 
 public partial class VaultFolderEntryListItemViewModel :
-    ViewModelBase
+    VaultFolderTreeItemViewModel
 {
     private readonly Action<
         VaultFolderEntryListItemViewModel> _select;

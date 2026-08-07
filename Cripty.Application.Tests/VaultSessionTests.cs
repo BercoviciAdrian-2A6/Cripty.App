@@ -52,6 +52,10 @@ public sealed class VaultSessionTests
         Assert.AreNotEqual(Guid.Empty, session.VaultId);
         Assert.AreEqual(0L, session.ManifestGeneration);
 
+        AssertKdfParametersEqual(
+            TestKdfParameters,
+            session.PasswordKdfParameters);
+
         Assert.AreEqual(0, session.Folders.Count);
         Assert.AreEqual(0, session.Tags.Count);
         Assert.AreEqual(0, session.Entries.Count);
@@ -691,7 +695,7 @@ public sealed class VaultSessionTests
                 InvalidOperationException>(
                 () => session.ChangePasswordAsync(
                     NewPassword,
-                    TestKdfParameters));
+                    ChangedKdfParameters));
 
             await session.SaveAsync();
 
@@ -700,7 +704,11 @@ public sealed class VaultSessionTests
 
             await session.ChangePasswordAsync(
                 NewPassword,
-                TestKdfParameters);
+                ChangedKdfParameters);
+
+            AssertKdfParametersEqual(
+                ChangedKdfParameters,
+                session.PasswordKdfParameters);
 
             // Password changes do not alter the manifest.
             Assert.AreEqual(
@@ -719,6 +727,10 @@ public sealed class VaultSessionTests
                 NewPassword);
 
         Assert.AreEqual(vaultId, reopened.VaultId);
+
+        AssertKdfParametersEqual(
+            ChangedKdfParameters,
+            reopened.PasswordKdfParameters);
 
         Assert.IsTrue(
             reopened.Entries.Any(
@@ -767,6 +779,38 @@ public sealed class VaultSessionTests
             Iterations = 2,
             DegreeOfParallelism = 1
         };
+
+    private static Argon2idParameters ChangedKdfParameters =>
+        new()
+        {
+            Version =
+                Argon2idParameters.SupportedVersion,
+
+            MemorySizeKiB = 20 * 1024,
+            Iterations = 3,
+            DegreeOfParallelism = 2
+        };
+
+    private static void AssertKdfParametersEqual(
+        Argon2idParameters expected,
+        Argon2idParameters actual)
+    {
+        Assert.AreEqual(
+            expected.Version,
+            actual.Version);
+
+        Assert.AreEqual(
+            expected.MemorySizeKiB,
+            actual.MemorySizeKiB);
+
+        Assert.AreEqual(
+            expected.Iterations,
+            actual.Iterations);
+
+        Assert.AreEqual(
+            expected.DegreeOfParallelism,
+            actual.DegreeOfParallelism);
+    }
 
     private static EntryField CreateTextField(
         string text)

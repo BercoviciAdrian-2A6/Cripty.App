@@ -8,6 +8,7 @@ namespace Cripty.ViewModels;
 
 public enum VaultFolderFilterKind
 {
+    AllEntries,
     Root,
     Folder
 }
@@ -206,7 +207,7 @@ public partial class VaultFolderEntryListItemViewModel :
 
     public VaultFolderEntryListItemViewModel(
         Guid entryId,
-        Guid folderId,
+        Guid? folderId,
         string name,
         int depth,
         EntrySessionState sessionState,
@@ -237,7 +238,7 @@ public partial class VaultFolderEntryListItemViewModel :
 
     public Guid EntryId { get; }
 
-    public Guid FolderId { get; }
+    public Guid? FolderId { get; }
 
     public string Name { get; }
 

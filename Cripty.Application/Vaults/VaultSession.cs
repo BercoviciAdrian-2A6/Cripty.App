@@ -104,6 +104,21 @@ public sealed class VaultSession : IAsyncDisposable
         ReadState(() =>
             Manifest.Generation);
 
+    public Argon2idParameters PasswordKdfParameters =>
+    ReadState(() =>
+    {
+        Argon2idParameters parameters =
+            _vaultFile.PasswordKeySlot.KdfParameters;
+
+        return new Argon2idParameters
+        {
+            Version = parameters.Version,
+            MemorySizeKiB = parameters.MemorySizeKiB,
+            Iterations = parameters.Iterations,
+            DegreeOfParallelism = parameters.DegreeOfParallelism
+        };
+    });
+
     public IReadOnlyList<FolderDescriptor> Folders =>
         ReadState(() =>
             (IReadOnlyList<FolderDescriptor>)

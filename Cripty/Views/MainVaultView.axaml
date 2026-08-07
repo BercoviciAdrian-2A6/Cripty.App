@@ -1116,7 +1116,7 @@
                                    FontWeight="SemiBold"
                                    LetterSpacing="1" />
 
-                        <TextBlock Text="Choose a new password for this vault. The current unlocked root key will be rewrapped with a fresh salt and the recommended Argon2id parameters."
+                        <TextBlock Text="Choose a new password and the Argon2id parameters that will protect this vault. The current unlocked root key will be rewrapped with a fresh salt."
                                    FontSize="11"
                                    LineHeight="17"
                                    Foreground="{StaticResource CriptyTextMutedBrush}"
@@ -1183,6 +1183,46 @@
                             BorderThickness="1"
                             CornerRadius="3">
 
+                        <Grid ColumnDefinitions="*,Auto">
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="KEY DERIVATION"
+                                           FontSize="9"
+                                           FontWeight="SemiBold"
+                                           LetterSpacing="1.3"
+                                           Foreground="{StaticResource CriptyTextMutedBrush}" />
+
+                                <TextBlock Text="{Binding PasswordKdfSummaryText}"
+                                           FontSize="11"
+                                           Foreground="{StaticResource CriptyTextBrush}" />
+
+                                <TextBlock Text="{Binding PasswordKdfProfileText}"
+                                           FontSize="8"
+                                           FontWeight="SemiBold"
+                                           LetterSpacing="0.9"
+                                           Foreground="{StaticResource CriptyAccentBrush}" />
+                            </StackPanel>
+
+                            <Button Grid.Column="1"
+                                    Classes="ghost"
+                                    Command="{Binding OpenPasswordKdfSettingsCommand}"
+                                    Margin="12,0,0,0"
+                                    Padding="11,7"
+                                    VerticalAlignment="Center">
+
+                                <TextBlock Text="KDF SETTINGS"
+                                           FontSize="9"
+                                           FontWeight="SemiBold"
+                                           LetterSpacing="0.9" />
+                            </Button>
+                        </Grid>
+                    </Border>
+
+                    <Border Padding="12"
+                            Background="#0A1C12"
+                            BorderBrush="{StaticResource CriptyBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="3">
+
                         <TextBlock Text="Only the password-protected key envelope changes. The manifest and encrypted entry files remain unchanged."
                                    FontSize="9"
                                    LineHeight="14"
@@ -1225,6 +1265,226 @@
                         </Button>
                     </Grid>
                 </StackPanel>
+            </Border>
+        </Border>
+
+        <!-- Password KDF settings dialog -->
+        <Border Grid.RowSpan="2"
+                ZIndex="100"
+                IsVisible="{Binding IsPasswordKdfSettingsOpen}"
+                Background="#E607110D">
+
+            <Border Width="620"
+                    MaxHeight="650"
+                    Margin="32"
+                    Padding="30"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Background="{StaticResource CriptySurfaceBrush}"
+                    BorderBrush="{StaticResource CriptyBorderBrightBrush}"
+                    BorderThickness="1"
+                    CornerRadius="5">
+
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                              VerticalScrollBarVisibility="Auto">
+
+                    <StackPanel Spacing="22">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <StackPanel Spacing="5">
+                                <TextBlock Text="ARGON2ID SETTINGS"
+                                           FontSize="21"
+                                           FontWeight="SemiBold"
+                                           LetterSpacing="1" />
+
+                                <TextBlock Text="Parameters used to derive the wrapping key from the new password."
+                                           FontSize="12"
+                                           Foreground="{StaticResource CriptyTextMutedBrush}"
+                                           TextWrapping="Wrap" />
+                            </StackPanel>
+
+                            <Border Grid.Column="1"
+                                    Padding="10,6"
+                                    VerticalAlignment="Top"
+                                    Background="#0A1C12"
+                                    BorderBrush="#1B3828"
+                                    BorderThickness="1"
+                                    CornerRadius="3">
+
+                                <TextBlock Text="VERSION 1.3"
+                                           FontSize="9"
+                                           FontWeight="SemiBold"
+                                           LetterSpacing="1"
+                                           Foreground="{StaticResource CriptyAccentBrush}" />
+                            </Border>
+                        </Grid>
+
+                        <Border Padding="13"
+                                Background="#291B13"
+                                BorderBrush="#6B4632"
+                                BorderThickness="1"
+                                CornerRadius="3">
+
+                            <TextBlock Text="Higher values consume more memory or CPU time during this password change and every future vault unlock."
+                                       FontSize="11"
+                                       LineHeight="17"
+                                       Foreground="{StaticResource CriptyDangerBrush}"
+                                       TextWrapping="Wrap" />
+                        </Border>
+
+                        <StackPanel Spacing="9">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <StackPanel Spacing="3">
+                                    <TextBlock Text="MEMORY"
+                                               FontSize="10"
+                                               FontWeight="SemiBold"
+                                               LetterSpacing="1.5"
+                                               Foreground="{StaticResource CriptyTextMutedBrush}" />
+
+                                    <TextBlock Text="Memory allocated while deriving the wrapping key."
+                                               FontSize="11"
+                                               Foreground="{StaticResource CriptyTextMutedBrush}" />
+                                </StackPanel>
+
+                                <TextBlock Grid.Column="1"
+                                           Text="{Binding PasswordKdfMemoryValueText}"
+                                           VerticalAlignment="Center"
+                                           FontSize="13"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource CriptyAccentBrush}" />
+                            </Grid>
+
+                            <Slider Minimum="{Binding MinimumPasswordKdfMemorySizeMiB}"
+                                    Maximum="{Binding MaximumPasswordKdfMemorySizeMiB}"
+                                    Value="{Binding PasswordKdfDraftMemorySizeMiB, Mode=TwoWay}"
+                                    TickFrequency="1"
+                                    IsSnapToTickEnabled="True" />
+
+                            <Grid ColumnDefinitions="Auto,*,Auto">
+                                <TextBlock Text="{Binding MinimumPasswordKdfMemorySizeText}"
+                                           FontSize="9"
+                                           Foreground="{StaticResource CriptyTextMutedBrush}" />
+
+                                <TextBlock Grid.Column="2"
+                                           Text="{Binding MaximumPasswordKdfMemorySizeText}"
+                                           FontSize="9"
+                                           Foreground="{StaticResource CriptyTextMutedBrush}" />
+                            </Grid>
+                        </StackPanel>
+
+                        <StackPanel Spacing="9">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <StackPanel Spacing="3">
+                                    <TextBlock Text="ITERATIONS"
+                                               FontSize="10"
+                                               FontWeight="SemiBold"
+                                               LetterSpacing="1.5"
+                                               Foreground="{StaticResource CriptyTextMutedBrush}" />
+
+                                    <TextBlock Text="Repeated passes over the configured memory."
+                                               FontSize="11"
+                                               Foreground="{StaticResource CriptyTextMutedBrush}" />
+                                </StackPanel>
+
+                                <TextBlock Grid.Column="1"
+                                           Text="{Binding PasswordKdfIterationsValueText}"
+                                           VerticalAlignment="Center"
+                                           FontSize="13"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource CriptyAccentBrush}" />
+                            </Grid>
+
+                            <Slider Minimum="{Binding MinimumPasswordKdfIterations}"
+                                    Maximum="{Binding MaximumPasswordKdfIterations}"
+                                    Value="{Binding PasswordKdfDraftIterations, Mode=TwoWay}"
+                                    TickFrequency="1"
+                                    IsSnapToTickEnabled="True" />
+
+                            <Grid ColumnDefinitions="Auto,*,Auto">
+                                <TextBlock Text="{Binding MinimumPasswordKdfIterations}"
+                                           FontSize="9"
+                                           Foreground="{StaticResource CriptyTextMutedBrush}" />
+
+                                <TextBlock Grid.Column="2"
+                                           Text="{Binding MaximumPasswordKdfIterations}"
+                                           FontSize="9"
+                                           Foreground="{StaticResource CriptyTextMutedBrush}" />
+                            </Grid>
+                        </StackPanel>
+
+                        <StackPanel Spacing="9">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <StackPanel Spacing="3">
+                                    <TextBlock Text="PARALLELISM"
+                                               FontSize="10"
+                                               FontWeight="SemiBold"
+                                               LetterSpacing="1.5"
+                                               Foreground="{StaticResource CriptyTextMutedBrush}" />
+
+                                    <TextBlock Text="CPU lanes used for performance tuning; it is not a direct strength setting."
+                                               FontSize="11"
+                                               Foreground="{StaticResource CriptyTextMutedBrush}"
+                                               TextWrapping="Wrap" />
+                                </StackPanel>
+
+                                <TextBlock Grid.Column="1"
+                                           Text="{Binding PasswordKdfParallelismValueText}"
+                                           VerticalAlignment="Center"
+                                           FontSize="13"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource CriptyAccentBrush}" />
+                            </Grid>
+
+                            <Slider Minimum="{Binding MinimumPasswordKdfParallelism}"
+                                    Maximum="{Binding MaximumPasswordKdfParallelism}"
+                                    Value="{Binding PasswordKdfDraftParallelism, Mode=TwoWay}"
+                                    TickFrequency="1"
+                                    IsSnapToTickEnabled="True" />
+
+                            <Grid ColumnDefinitions="Auto,*,Auto">
+                                <TextBlock Text="{Binding MinimumPasswordKdfParallelism}"
+                                           FontSize="9"
+                                           Foreground="{StaticResource CriptyTextMutedBrush}" />
+
+                                <TextBlock Grid.Column="2"
+                                           Text="{Binding MaximumPasswordKdfParallelism}"
+                                           FontSize="9"
+                                           Foreground="{StaticResource CriptyTextMutedBrush}" />
+                            </Grid>
+                        </StackPanel>
+
+                        <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                            <Button Classes="ghost"
+                                    Command="{Binding RestoreDefaultPasswordKdfSettingsCommand}">
+
+                                <TextBlock Text="RESTORE DEFAULTS"
+                                           FontSize="10"
+                                           FontWeight="SemiBold"
+                                           LetterSpacing="1" />
+                            </Button>
+
+                            <Button Grid.Column="2"
+                                    Classes="ghost"
+                                    Command="{Binding CancelPasswordKdfSettingsCommand}"
+                                    Margin="0,0,8,0">
+
+                                <TextBlock Text="CANCEL"
+                                           FontSize="10"
+                                           FontWeight="SemiBold"
+                                           LetterSpacing="1" />
+                            </Button>
+
+                            <Button Grid.Column="3"
+                                    Classes="primary"
+                                    Command="{Binding ApplyPasswordKdfSettingsCommand}">
+
+                                <TextBlock Text="APPLY"
+                                           FontSize="10"
+                                           FontWeight="SemiBold"
+                                           LetterSpacing="1" />
+                            </Button>
+                        </Grid>
+                    </StackPanel>
+                </ScrollViewer>
             </Border>
         </Border>
 

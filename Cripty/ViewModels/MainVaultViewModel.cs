@@ -23,6 +23,12 @@ public partial class MainVaultViewModel :
     private readonly HashSet<Guid>
         _expandedFolderIds = [];
 
+    private bool _isRootExpanded = true;
+
+    private int _selectedPasswordKdfMemorySizeKiB;
+    private int _selectedPasswordKdfIterations;
+    private int _selectedPasswordKdfParallelism;
+
     private VaultFolderListItemViewModel?
         _selectedFolder;
 
@@ -144,7 +150,7 @@ public partial class MainVaultViewModel :
     {
         get;
         private set;
-    } = "ROOT";
+    } = "ALL ENTRIES";
 
     [ObservableProperty]
     public partial string CurrentFilterDescription
@@ -253,6 +259,34 @@ public partial class MainVaultViewModel :
     }
 
     [ObservableProperty]
+    public partial bool IsPasswordKdfSettingsOpen
+    {
+        get;
+        private set;
+    }
+
+    [ObservableProperty]
+    public partial double PasswordKdfDraftMemorySizeMiB
+    {
+        get;
+        set;
+    }
+
+    [ObservableProperty]
+    public partial double PasswordKdfDraftIterations
+    {
+        get;
+        set;
+    }
+
+    [ObservableProperty]
+    public partial double PasswordKdfDraftParallelism
+    {
+        get;
+        set;
+    }
+
+    [ObservableProperty]
     public partial bool IsDialogOpen
     {
         get;
@@ -344,6 +378,58 @@ public partial class MainVaultViewModel :
             ? "Save all pending changes before changing the password."
             : "Rewraps the vault key with a fresh salt. Entry files are not re-encrypted.";
 
+    public int MinimumPasswordKdfMemorySizeMiB =>
+        Argon2idParameters.MinimumMemorySizeKiB /
+        1024;
+
+    public int MaximumPasswordKdfMemorySizeMiB =>
+        Argon2idParameters.MaximumMemorySizeKiB /
+        1024;
+
+    public int MinimumPasswordKdfIterations =>
+        Argon2idParameters.MinimumIterations;
+
+    public int MaximumPasswordKdfIterations =>
+        Argon2idParameters.MaximumIterations;
+
+    public int MinimumPasswordKdfParallelism =>
+        Argon2idParameters.MinimumParallelism;
+
+    public int MaximumPasswordKdfParallelism =>
+        Argon2idParameters.MaximumParallelism;
+
+    public string MinimumPasswordKdfMemorySizeText =>
+        $"{MinimumPasswordKdfMemorySizeMiB} MiB";
+
+    public string MaximumPasswordKdfMemorySizeText =>
+        $"{MaximumPasswordKdfMemorySizeMiB} MiB";
+
+    public string PasswordKdfSummaryText =>
+        $"ARGON2ID · " +
+        $"{_selectedPasswordKdfMemorySizeKiB / 1024} MiB · " +
+        $"{FormatCount(_selectedPasswordKdfIterations, "iteration")} · " +
+        FormatCount(
+            _selectedPasswordKdfParallelism,
+            "lane");
+
+    public string PasswordKdfProfileText =>
+        UsesRecommendedPasswordKdfParameters()
+            ? "DEFAULT PARAMETERS"
+            : "CUSTOM PARAMETERS";
+
+    public string PasswordKdfMemoryValueText =>
+        $"{ToWholeNumber(PasswordKdfDraftMemorySizeMiB)} MiB";
+
+    public string PasswordKdfIterationsValueText =>
+        FormatCount(
+            ToWholeNumber(PasswordKdfDraftIterations),
+            "iteration");
+
+    public string PasswordKdfParallelismValueText =>
+        FormatCount(
+            ToWholeNumber(PasswordKdfDraftParallelism),
+            "lane");
+
     public string SaveActionText =>
         IsSaving
             ? "SAVING..."
@@ -410,6 +496,7 @@ public partial class MainVaultViewModel :
     private bool CanConfirmPasswordChange()
     {
         return IsPasswordChangeOpen &&
+               !IsPasswordKdfSettingsOpen &&
                !IsBusy &&
                !string.IsNullOrEmpty(
                    NewPassword) &&
@@ -420,6 +507,21 @@ public partial class MainVaultViewModel :
     private bool CanInteractWithPasswordChange()
     {
         return IsPasswordChangeOpen &&
+               !IsPasswordKdfSettingsOpen &&
+               !IsBusy;
+    }
+
+    private bool CanOpenPasswordKdfSettings()
+    {
+        return IsPasswordChangeOpen &&
+               !IsPasswordKdfSettingsOpen &&
+               !IsBusy;
+    }
+
+    private bool CanInteractWithPasswordKdfSettings()
+    {
+        return IsPasswordChangeOpen &&
+               IsPasswordKdfSettingsOpen &&
                !IsBusy;
     }
 
@@ -535,6 +637,40 @@ public partial class MainVaultViewModel :
     {
         OnPropertyChanged(
             nameof(HasPasswordChangeError));
+    }
+
+    partial void OnIsPasswordKdfSettingsOpenChanged(
+        bool value)
+    {
+        ConfirmPasswordChangeCommand.NotifyCanExecuteChanged();
+        CancelPasswordChangeCommand.NotifyCanExecuteChanged();
+        ToggleNewPasswordVisibilityCommand.NotifyCanExecuteChanged();
+        ToggleConfirmNewPasswordVisibilityCommand.NotifyCanExecuteChanged();
+        OpenPasswordKdfSettingsCommand.NotifyCanExecuteChanged();
+        CancelPasswordKdfSettingsCommand.NotifyCanExecuteChanged();
+        RestoreDefaultPasswordKdfSettingsCommand.NotifyCanExecuteChanged();
+        ApplyPasswordKdfSettingsCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnPasswordKdfDraftMemorySizeMiBChanged(
+        double value)
+    {
+        OnPropertyChanged(
+            nameof(PasswordKdfMemoryValueText));
+    }
+
+    partial void OnPasswordKdfDraftIterationsChanged(
+        double value)
+    {
+        OnPropertyChanged(
+            nameof(PasswordKdfIterationsValueText));
+    }
+
+    partial void OnPasswordKdfDraftParallelismChanged(
+        double value)
+    {
+        OnPropertyChanged(
+            nameof(PasswordKdfParallelismValueText));
     }
 
     partial void OnIsDialogOpenChanged(
@@ -700,6 +836,7 @@ public partial class MainVaultViewModel :
     {
         ClearPasswordChangeInputs();
         ClearPasswordChangeError();
+        LoadCurrentPasswordKdfParameters();
         IsPasswordChangeOpen = true;
     }
 
@@ -735,6 +872,67 @@ public partial class MainVaultViewModel :
         }
     }
 
+    [RelayCommand(
+        CanExecute = nameof(CanOpenPasswordKdfSettings))]
+    private void OpenPasswordKdfSettings()
+    {
+        CopySelectedPasswordKdfParametersToDraft();
+        IsPasswordKdfSettingsOpen = true;
+    }
+
+    [RelayCommand(
+        CanExecute = nameof(CanInteractWithPasswordKdfSettings))]
+    private void CancelPasswordKdfSettings()
+    {
+        CopySelectedPasswordKdfParametersToDraft();
+        IsPasswordKdfSettingsOpen = false;
+    }
+
+    [RelayCommand(
+        CanExecute = nameof(CanInteractWithPasswordKdfSettings))]
+    private void RestoreDefaultPasswordKdfSettings()
+    {
+        Argon2idParameters recommended =
+            Argon2idParameters.Recommended;
+
+        PasswordKdfDraftMemorySizeMiB =
+            recommended.MemorySizeKiB /
+            1024;
+
+        PasswordKdfDraftIterations =
+            recommended.Iterations;
+
+        PasswordKdfDraftParallelism =
+            recommended.DegreeOfParallelism;
+    }
+
+    [RelayCommand(
+        CanExecute = nameof(CanInteractWithPasswordKdfSettings))]
+    private void ApplyPasswordKdfSettings()
+    {
+        Argon2idParameters parameters =
+            CreateDraftPasswordKdfParameters();
+
+        parameters.Validate();
+
+        _selectedPasswordKdfMemorySizeKiB =
+            parameters.MemorySizeKiB;
+
+        _selectedPasswordKdfIterations =
+            parameters.Iterations;
+
+        _selectedPasswordKdfParallelism =
+            parameters.DegreeOfParallelism;
+
+        OnPropertyChanged(
+            nameof(PasswordKdfSummaryText));
+
+        OnPropertyChanged(
+            nameof(PasswordKdfProfileText));
+
+        IsPasswordKdfSettingsOpen = false;
+    }
+
     [RelayCommand(CanExecute = nameof(CanConfirmPasswordChange))]
     private async Task ConfirmPasswordChangeAsync()
     {
@@ -767,6 +965,9 @@ public partial class MainVaultViewModel :
         string submittedPassword =
             NewPassword;
 
+        Argon2idParameters submittedKdfParameters =
+            CreateSelectedPasswordKdfParameters();
+
         ClearPasswordChangeInputs();
         ClearError();
 
@@ -778,7 +979,7 @@ public partial class MainVaultViewModel :
             await Task.Run(() =>
                 _session.ChangePasswordAsync(
                     submittedPassword,
-                    Argon2idParameters.Recommended));
+                    submittedKdfParameters));
 
             ClosePasswordChange();
             IsMoreOptionsOpen = false;
@@ -1119,8 +1320,33 @@ public partial class MainVaultViewModel :
     {
         if (IsBusy ||
             IsDialogOpen ||
-            !folder.IsExpandable ||
-            folder.FolderId is not Guid folderId)
+            !folder.IsExpandable)
+        {
+            return;
+        }
+
+        if (folder.Kind == VaultFolderFilterKind.Root)
+        {
+            _isRootExpanded = !_isRootExpanded;
+
+            if (!_isRootExpanded &&
+                _selectedFolder?.Kind ==
+                VaultFolderFilterKind.Folder)
+            {
+                RefreshBrowser(
+                    selectedFolderKind:
+                        VaultFolderFilterKind.Root,
+                    selectedFolderId: null);
+            }
+            else
+            {
+                RefreshBrowser();
+            }
+
+            return;
+        }
+
+        if (folder.FolderId is not Guid folderId)
         {
             return;
         }
@@ -1250,7 +1476,9 @@ public partial class MainVaultViewModel :
 
         RefreshBrowser(
             selectedFolderKind:
-                VaultFolderFilterKind.Folder,
+                entry.FolderId.HasValue
+                    ? VaultFolderFilterKind.Folder
+                    : VaultFolderFilterKind.Root,
             selectedFolderId:
                 entry.FolderId,
             selectedEntryId:
@@ -1266,7 +1494,7 @@ public partial class MainVaultViewModel :
         VaultFolderFilterKind folderKind =
             selectedFolderKind ??
             _selectedFolder?.Kind ??
-            VaultFolderFilterKind.Root;
+            VaultFolderFilterKind.AllEntries;
 
         Guid? folderId =
             selectedFolderKind.HasValue
@@ -1351,26 +1579,70 @@ public partial class MainVaultViewModel :
 
         FolderItems.Add(
             new VaultFolderListItemViewModel(
+                VaultFolderFilterKind.AllEntries,
+                folderId: null,
+                parentFolderId: null,
+                "ALL ENTRIES",
+                depth: 0,
+                entries.Count,
+                isExpandable: false,
+                isExpanded: false,
+                SelectFolder,
+                ToggleFolderExpansion));
+
+        EntryDescriptor[] rootEntries =
+            entries
+                .Where(entry =>
+                    entry.FolderId is null)
+                .OrderBy(
+                    entry => entry.Name,
+                    StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+        bool rootHasFolders =
+            folders.Any(folder =>
+                folder.ParentFolderId is null);
+
+        FolderItems.Add(
+            new VaultFolderListItemViewModel(
                 VaultFolderFilterKind.Root,
                 folderId: null,
                 parentFolderId: null,
                 "ROOT",
                 depth: 0,
-                entries.Count,
-                isExpandable: false,
-                isExpanded: true,
+                rootEntries.Length,
+                isExpandable:
+                    rootHasFolders ||
+                    rootEntries.Length > 0,
+                isExpanded: _isRootExpanded,
                 SelectFolder,
                 ToggleFolderExpansion));
 
         HashSet<Guid> visited = [];
 
-        AddFolderChildren(
-            parentFolderId: null,
-            depth: 1,
-            folders,
-            entries,
-            entrySessionStates,
-            visited);
+        if (_isRootExpanded)
+        {
+            AddFolderChildren(
+                parentFolderId: null,
+                depth: 1,
+                folders,
+                entries,
+                entrySessionStates,
+                visited);
+
+            foreach (EntryDescriptor entry in rootEntries)
+            {
+                FolderItems.Add(
+                    new VaultFolderEntryListItemViewModel(
+                        entry.EntryId,
+                        folderId: null,
+                        entry.Name,
+                        depth: 1,
+                        entrySessionStates[
+                            entry.EntryId],
+                        SelectFolderEntry));
+            }
+        }
     }
 
     private void AddFolderChildren(
@@ -1513,7 +1785,7 @@ public partial class MainVaultViewModel :
                    .OfType<VaultFolderListItemViewModel>()
                    .First(item =>
                        item.Kind ==
-                       VaultFolderFilterKind.Root);
+                       VaultFolderFilterKind.AllEntries);
     }
 
     private VaultTagListItemViewModel
@@ -1558,6 +1830,12 @@ public partial class MainVaultViewModel :
             filtered = filtered.Where(entry =>
                 entry.FolderId ==
                 selectedFolderId);
+        }
+        else if (_selectedFolder?.Kind ==
+                 VaultFolderFilterKind.Root)
+        {
+            filtered = filtered.Where(entry =>
+                entry.FolderId is null);
         }
 
         if (_selectedTag?.TagId is Guid selectedTagId)
@@ -1845,9 +2123,101 @@ public partial class MainVaultViewModel :
 
     private void ClosePasswordChange()
     {
+        IsPasswordKdfSettingsOpen = false;
         IsPasswordChangeOpen = false;
         ClearPasswordChangeInputs();
         ClearPasswordChangeError();
+    }
+
+    private void LoadCurrentPasswordKdfParameters()
+    {
+        Argon2idParameters parameters =
+            _session.PasswordKdfParameters;
+
+        _selectedPasswordKdfMemorySizeKiB =
+            parameters.MemorySizeKiB;
+
+        _selectedPasswordKdfIterations =
+            parameters.Iterations;
+
+        _selectedPasswordKdfParallelism =
+            parameters.DegreeOfParallelism;
+
+        CopySelectedPasswordKdfParametersToDraft();
+
+        OnPropertyChanged(
+            nameof(PasswordKdfSummaryText));
+
+        OnPropertyChanged(
+            nameof(PasswordKdfProfileText));
+    }
+
+    private void CopySelectedPasswordKdfParametersToDraft()
+    {
+        PasswordKdfDraftMemorySizeMiB =
+            _selectedPasswordKdfMemorySizeKiB /
+            1024;
+
+        PasswordKdfDraftIterations =
+            _selectedPasswordKdfIterations;
+
+        PasswordKdfDraftParallelism =
+            _selectedPasswordKdfParallelism;
+    }
+
+    private Argon2idParameters
+        CreateDraftPasswordKdfParameters()
+    {
+        return new Argon2idParameters
+        {
+            Version =
+                Argon2idParameters.SupportedVersion,
+
+            MemorySizeKiB = checked(
+                ToWholeNumber(
+                    PasswordKdfDraftMemorySizeMiB) *
+                1024),
+
+            Iterations =
+                ToWholeNumber(
+                    PasswordKdfDraftIterations),
+
+            DegreeOfParallelism =
+                ToWholeNumber(
+                    PasswordKdfDraftParallelism)
+        };
+    }
+
+    private Argon2idParameters
+        CreateSelectedPasswordKdfParameters()
+    {
+        return new Argon2idParameters
+        {
+            Version =
+                Argon2idParameters.SupportedVersion,
+
+            MemorySizeKiB =
+                _selectedPasswordKdfMemorySizeKiB,
+
+            Iterations =
+                _selectedPasswordKdfIterations,
+
+            DegreeOfParallelism =
+                _selectedPasswordKdfParallelism
+        };
+    }
+
+    private bool UsesRecommendedPasswordKdfParameters()
+    {
+        Argon2idParameters recommended =
+            Argon2idParameters.Recommended;
+
+        return _selectedPasswordKdfMemorySizeKiB ==
+                   recommended.MemorySizeKiB &&
+               _selectedPasswordKdfIterations ==
+                   recommended.Iterations &&
+               _selectedPasswordKdfParallelism ==
+                   recommended.DegreeOfParallelism;
     }
 
     private void ClearPasswordChangeInputs()
@@ -1898,6 +2268,10 @@ public partial class MainVaultViewModel :
         CancelPasswordChangeCommand.NotifyCanExecuteChanged();
         ToggleNewPasswordVisibilityCommand.NotifyCanExecuteChanged();
         ToggleConfirmNewPasswordVisibilityCommand.NotifyCanExecuteChanged();
+        OpenPasswordKdfSettingsCommand.NotifyCanExecuteChanged();
+        CancelPasswordKdfSettingsCommand.NotifyCanExecuteChanged();
+        RestoreDefaultPasswordKdfSettingsCommand.NotifyCanExecuteChanged();
+        ApplyPasswordKdfSettingsCommand.NotifyCanExecuteChanged();
     }
 
     private static string FormatCharacterCount(
@@ -1906,6 +2280,24 @@ public partial class MainVaultViewModel :
         return characterCount == 1
             ? "1 CHARACTER ENTERED"
             : $"{characterCount} CHARACTERS ENTERED";
+    }
+
+    private static string FormatCount(
+        int count,
+        string singularUnit)
+    {
+        return count == 1
+            ? $"1 {singularUnit}"
+            : $"{count} {singularUnit}s";
+    }
+
+    private static int ToWholeNumber(
+        double value)
+    {
+        return checked(
+            (int)Math.Round(
+                value,
+                MidpointRounding.AwayFromZero));
     }
 
     private static bool IsExpectedOperationFailure(

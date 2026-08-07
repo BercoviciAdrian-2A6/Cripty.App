@@ -566,6 +566,12 @@ public sealed class VaultSessionTests
                 entry.EntryId,
                 destination.FolderId);
 
+            Assert.AreEqual(
+                EntryChangeKind.Modified,
+                session.GetEntrySessionState(
+                        entry.EntryId)
+                    .ChangeKind);
+
             session.AddTagToEntry(
                 entry.EntryId,
                 retainedTag.TagId);
@@ -587,6 +593,12 @@ public sealed class VaultSessionTests
                 "#123456");
 
             await session.SaveAsync();
+
+            Assert.AreEqual(
+                EntryChangeKind.None,
+                session.GetEntrySessionState(
+                        entry.EntryId)
+                    .ChangeKind);
 
             entryId = entry.EntryId;
             destinationFolderId = destination.FolderId;

@@ -23,7 +23,11 @@ public partial class MainVaultViewModel :
     private readonly HashSet<Guid>
         _expandedFolderIds = [];
 
+    private readonly HashSet<Guid>
+        _expandedMoveDestinationIds = [];
+
     private bool _isRootExpanded = true;
+    private bool _isMoveRootExpanded = true;
 
     private int _selectedPasswordKdfMemorySizeKiB;
     private int _selectedPasswordKdfIterations;
@@ -37,6 +41,14 @@ public partial class MainVaultViewModel :
 
     private VaultEntryListItemViewModel?
         _selectedEntry;
+
+    private VaultMoveDestinationItemViewModel?
+        _selectedMoveDestination;
+
+    private MoveOperationKind _moveOperationKind;
+    private Guid _moveItemId;
+    private Guid? _moveCurrentParentFolderId;
+    private string _moveItemName = string.Empty;
 
     private DialogAction _dialogAction;
 
@@ -96,6 +108,11 @@ public partial class MainVaultViewModel :
 
     public ObservableCollection<
         VaultEntryListItemViewModel> EntryItems
+    { get; } = [];
+
+    public ObservableCollection<
+        VaultMoveDestinationItemViewModel>
+        MoveDestinationItems
     { get; } = [];
 
     public IReadOnlyList<
@@ -287,6 +304,55 @@ public partial class MainVaultViewModel :
     }
 
     [ObservableProperty]
+    public partial bool IsMoveDialogOpen
+    {
+        get;
+        private set;
+    }
+
+    [ObservableProperty]
+    public partial string MoveDialogTitle
+    {
+        get;
+        private set;
+    } = string.Empty;
+
+    [ObservableProperty]
+    public partial string MoveDialogDescription
+    {
+        get;
+        private set;
+    } = string.Empty;
+
+    [ObservableProperty]
+    public partial string MoveItemName
+    {
+        get;
+        private set;
+    } = string.Empty;
+
+    [ObservableProperty]
+    public partial string MoveCurrentLocationText
+    {
+        get;
+        private set;
+    } = string.Empty;
+
+    [ObservableProperty]
+    public partial string MoveDestinationText
+    {
+        get;
+        private set;
+    } = "NO DESTINATION SELECTED";
+
+    [ObservableProperty]
+    public partial string? MoveDialogErrorMessage
+    {
+        get;
+        private set;
+    }
+
+    [ObservableProperty]
     public partial bool IsDialogOpen
     {
         get;
@@ -349,6 +415,15 @@ public partial class MainVaultViewModel :
     public bool HasPasswordChangeError =>
         !string.IsNullOrWhiteSpace(
             PasswordChangeErrorMessage);
+
+    public bool HasMoveDialogError =>
+        !string.IsNullOrWhiteSpace(
+            MoveDialogErrorMessage);
+
+    public string MoveDialogActionText =>
+        _moveOperationKind == MoveOperationKind.Folder
+            ? "MOVE FOLDER HERE"
+            : "MOVE ENTRY HERE";
 
     public string NewPasswordCharacterCountText =>
         FormatCharacterCount(
@@ -444,7 +519,21 @@ public partial class MainVaultViewModel :
     {
         return !IsBusy &&
                !IsDialogOpen &&
-               !IsPasswordChangeOpen;
+               !IsPasswordChangeOpen &&
+               !IsMoveDialogOpen;
+    }
+
+    private bool CanMoveFolder()
+    {
+        return CanMutateVault() &&
+               _selectedFolder?.IsFolder == true;
+    }
+
+    private bool CanMoveEntry()
+    {
+        return CanMutateVault() &&
+               _selectedEntry is not null &&
+               !_selectedEntry.IsPendingDeletion;
     }
 
     private bool CanDeleteFolder()
@@ -482,6 +571,13 @@ public partial class MainVaultViewModel :
         return !IsDialogInputVisible ||
                !string.IsNullOrWhiteSpace(
                    DialogInput);
+    }
+
+    private bool CanConfirmMoveDialog()
+    {
+        return IsMoveDialogOpen &&
+               !IsBusy &&
+               _selectedMoveDestination?.IsSelectable == true;
     }
 
     private bool CanOpenPasswordChange()
@@ -652,6 +748,20 @@ public partial class MainVaultViewModel :
         ApplyPasswordKdfSettingsCommand.NotifyCanExecuteChanged();
     }
 
+    partial void OnIsMoveDialogOpenChanged(
+        bool value)
+    {
+        NotifyCommandStates();
+        ConfirmMoveDialogCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnMoveDialogErrorMessageChanged(
+        string? value)
+    {
+        OnPropertyChanged(
+            nameof(HasMoveDialogError));
+    }
+
     partial void OnPasswordKdfDraftMemorySizeMiBChanged(
         double value)
     {
@@ -750,6 +860,46 @@ public partial class MainVaultViewModel :
             "CREATE ENTRY");
     }
 
+    [RelayCommand(CanExecute = nameof(CanMoveFolder))]
+    private void OpenFolderMove()
+    {
+        VaultFolderListItemViewModel folder =
+            _selectedFolder ??
+            throw new InvalidOperationException(
+                "Select a folder before moving it.");
+
+        if (folder.FolderId is not Guid folderId)
+        {
+            throw new InvalidOperationException(
+                "The selected item is not a folder.");
+        }
+
+        OpenMoveDialog(
+            MoveOperationKind.Folder,
+            folderId,
+            folder.Name,
+            folder.ParentFolderId);
+    }
+
+    [RelayCommand(CanExecute = nameof(CanMoveEntry))]
+    private void OpenEntryMove()
+    {
+        VaultEntryListItemViewModel entry =
+            _selectedEntry ??
+            throw new InvalidOperationException(
+                "Select an entry before moving it.");
+
+        EntryDescriptor descriptor =
+            _session.Entries.Single(item =>
+                item.EntryId == entry.EntryId);
+
+        OpenMoveDialog(
+            MoveOperationKind.Entry,
+            entry.EntryId,
+            entry.Name,
+            descriptor.FolderId);
+    }
+
     [RelayCommand(CanExecute = nameof(CanDeleteFolder))]
     private void DeleteFolder()
     {
@@ -790,6 +940,58 @@ public partial class MainVaultViewModel :
             "deletion. Its encrypted entry file is deleted when " +
             "you press SAVE.",
             "DELETE ENTRY");
+    }
+
+    [RelayCommand]
+    private void CancelMoveDialog()
+    {
+        if (!IsBusy)
+        {
+            CloseMoveDialog();
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanConfirmMoveDialog))]
+    private void ConfirmMoveDialog()
+    {
+        if (_selectedMoveDestination is null)
+        {
+            MoveDialogErrorMessage =
+                "Select a destination folder.";
+
+            return;
+        }
+
+        Guid? destinationFolderId =
+            _selectedMoveDestination.FolderId;
+
+        try
+        {
+            if (_moveOperationKind ==
+                MoveOperationKind.Entry)
+            {
+                MoveSelectedEntry(
+                    destinationFolderId);
+            }
+            else if (_moveOperationKind ==
+                     MoveOperationKind.Folder)
+            {
+                MoveSelectedFolder(
+                    destinationFolderId);
+            }
+            else
+            {
+                throw new InvalidOperationException(
+                    "No move operation is active.");
+            }
+        }
+        catch (Exception exception)
+            when (IsExpectedOperationFailure(
+                exception))
+        {
+            MoveDialogErrorMessage =
+                exception.Message;
+        }
     }
 
     [RelayCommand(CanExecute = nameof(CanSave))]
@@ -1271,6 +1473,502 @@ public partial class MainVaultViewModel :
         ClearError();
     }
 
+    private void OpenMoveDialog(
+        MoveOperationKind operationKind,
+        Guid itemId,
+        string itemName,
+        Guid? currentParentFolderId)
+    {
+        _moveOperationKind = operationKind;
+        _moveItemId = itemId;
+        _moveItemName = itemName;
+        _moveCurrentParentFolderId =
+            currentParentFolderId;
+
+        MoveDialogTitle = operationKind ==
+            MoveOperationKind.Folder
+                ? "MOVE FOLDER"
+                : "MOVE ENTRY";
+
+        MoveDialogDescription = operationKind ==
+            MoveOperationKind.Folder
+                ? "Choose the folder which will contain this folder. " +
+                  "Invalid destinations are shown but cannot be selected."
+                : "Choose the folder which will contain this entry. " +
+                  "The move remains unsaved until you press SAVE.";
+
+        MoveItemName = itemName;
+
+        FolderDescriptor[] folders =
+            [.. _session.Folders];
+
+        Dictionary<Guid, FolderDescriptor> foldersById =
+            folders.ToDictionary(
+                folder => folder.FolderId);
+
+        MoveCurrentLocationText =
+            BuildFolderPath(
+                currentParentFolderId,
+                foldersById);
+
+        MoveDestinationText =
+            "NO DESTINATION SELECTED";
+
+        MoveDialogErrorMessage = null;
+        _selectedMoveDestination = null;
+        _expandedMoveDestinationIds.Clear();
+        _isMoveRootExpanded = true;
+
+        ExpandMoveDestinationPath(
+            currentParentFolderId,
+            foldersById);
+
+        RebuildMoveDestinationItems();
+
+        OnPropertyChanged(
+            nameof(MoveDialogActionText));
+
+        IsMoveDialogOpen = true;
+    }
+
+    private void CloseMoveDialog()
+    {
+        IsMoveDialogOpen = false;
+        _moveOperationKind = MoveOperationKind.None;
+        _moveItemId = Guid.Empty;
+        _moveItemName = string.Empty;
+        _moveCurrentParentFolderId = null;
+        _selectedMoveDestination = null;
+        _expandedMoveDestinationIds.Clear();
+        _isMoveRootExpanded = true;
+        MoveDestinationItems.Clear();
+        MoveDialogTitle = string.Empty;
+        MoveDialogDescription = string.Empty;
+        MoveItemName = string.Empty;
+        MoveCurrentLocationText = string.Empty;
+        MoveDestinationText =
+            "NO DESTINATION SELECTED";
+        MoveDialogErrorMessage = null;
+    }
+
+    private void SelectMoveDestination(
+        VaultMoveDestinationItemViewModel destination)
+    {
+        if (!IsMoveDialogOpen ||
+            IsBusy ||
+            !destination.IsSelectable)
+        {
+            return;
+        }
+
+        _selectedMoveDestination = destination;
+
+        foreach (VaultMoveDestinationItemViewModel item in
+                 MoveDestinationItems)
+        {
+            item.SetSelected(
+                ReferenceEquals(
+                    item,
+                    destination));
+        }
+
+        MoveDestinationText =
+            $"DESTINATION · {destination.PathText}";
+
+        MoveDialogErrorMessage = null;
+        ConfirmMoveDialogCommand.NotifyCanExecuteChanged();
+    }
+
+    private void ToggleMoveDestinationExpansion(
+        VaultMoveDestinationItemViewModel destination)
+    {
+        if (!IsMoveDialogOpen ||
+            IsBusy ||
+            !destination.IsExpandable)
+        {
+            return;
+        }
+
+        if (destination.FolderId is not Guid folderId)
+        {
+            _isMoveRootExpanded =
+                !_isMoveRootExpanded;
+        }
+        else if (!_expandedMoveDestinationIds.Add(
+                     folderId))
+        {
+            _expandedMoveDestinationIds.Remove(
+                folderId);
+        }
+
+        RebuildMoveDestinationItems();
+    }
+
+    private void RebuildMoveDestinationItems()
+    {
+        bool hadSelection =
+            _selectedMoveDestination is not null;
+
+        Guid? selectedFolderId =
+            _selectedMoveDestination?.FolderId;
+
+        FolderDescriptor[] folders =
+            [.. _session.Folders];
+
+        Dictionary<Guid, FolderDescriptor> foldersById =
+            folders.ToDictionary(
+                folder => folder.FolderId);
+
+        MoveDestinationItems.Clear();
+
+        string? rootDisabledReason =
+            GetMoveDestinationDisabledReason(
+                destinationFolderId: null,
+                folders,
+                foldersById);
+
+        MoveDestinationItems.Add(
+            new VaultMoveDestinationItemViewModel(
+                folderId: null,
+                "ROOT",
+                "ROOT",
+                depth: 0,
+                isExpandable: folders.Any(folder =>
+                    folder.ParentFolderId is null),
+                isExpanded: _isMoveRootExpanded,
+                isSelectable:
+                    rootDisabledReason is null,
+                rootDisabledReason,
+                SelectMoveDestination,
+                ToggleMoveDestinationExpansion));
+
+        if (_isMoveRootExpanded)
+        {
+            AddMoveDestinationChildren(
+                parentFolderId: null,
+                depth: 1,
+                folders,
+                foldersById,
+                visited: []);
+        }
+
+        _selectedMoveDestination = hadSelection
+            ? MoveDestinationItems.FirstOrDefault(item =>
+                item.FolderId == selectedFolderId &&
+                item.IsSelectable)
+            : null;
+
+        foreach (VaultMoveDestinationItemViewModel item in
+                 MoveDestinationItems)
+        {
+            item.SetSelected(
+                ReferenceEquals(
+                    item,
+                    _selectedMoveDestination));
+        }
+
+        if (_selectedMoveDestination is null)
+        {
+            MoveDestinationText =
+                "NO DESTINATION SELECTED";
+        }
+
+        ConfirmMoveDialogCommand.NotifyCanExecuteChanged();
+    }
+
+    private void AddMoveDestinationChildren(
+        Guid? parentFolderId,
+        int depth,
+        IReadOnlyCollection<FolderDescriptor> folders,
+        IReadOnlyDictionary<Guid, FolderDescriptor> foldersById,
+        HashSet<Guid> visited)
+    {
+        FolderDescriptor[] children =
+            folders
+                .Where(folder =>
+                    folder.ParentFolderId ==
+                    parentFolderId)
+                .OrderBy(
+                    folder => folder.Name,
+                    StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+        foreach (FolderDescriptor folder in children)
+        {
+            if (!visited.Add(
+                    folder.FolderId))
+            {
+                continue;
+            }
+
+            bool isExpandable =
+                folders.Any(child =>
+                    child.ParentFolderId ==
+                    folder.FolderId);
+
+            bool isExpanded =
+                _expandedMoveDestinationIds.Contains(
+                    folder.FolderId);
+
+            string? disabledReason =
+                GetMoveDestinationDisabledReason(
+                    folder.FolderId,
+                    folders,
+                    foldersById);
+
+            MoveDestinationItems.Add(
+                new VaultMoveDestinationItemViewModel(
+                    folder.FolderId,
+                    folder.Name,
+                    BuildFolderPath(
+                        folder.FolderId,
+                        foldersById),
+                    depth,
+                    isExpandable,
+                    isExpanded,
+                    isSelectable:
+                        disabledReason is null,
+                    disabledReason,
+                    SelectMoveDestination,
+                    ToggleMoveDestinationExpansion));
+
+            if (isExpanded)
+            {
+                AddMoveDestinationChildren(
+                    folder.FolderId,
+                    depth + 1,
+                    folders,
+                    foldersById,
+                    visited);
+            }
+        }
+    }
+
+    private string? GetMoveDestinationDisabledReason(
+        Guid? destinationFolderId,
+        IReadOnlyCollection<FolderDescriptor> folders,
+        IReadOnlyDictionary<Guid, FolderDescriptor> foldersById)
+    {
+        if (destinationFolderId ==
+            _moveCurrentParentFolderId)
+        {
+            return "This is already the current location.";
+        }
+
+        if (_moveOperationKind ==
+            MoveOperationKind.Entry)
+        {
+            return null;
+        }
+
+        if (destinationFolderId ==
+            _moveItemId)
+        {
+            return "A folder cannot contain itself.";
+        }
+
+        if (IsFolderOrDescendant(
+                destinationFolderId,
+                _moveItemId,
+                foldersById))
+        {
+            return "A folder cannot move into one of its descendants.";
+        }
+
+        bool hasNameConflict =
+            folders.Any(folder =>
+                folder.FolderId != _moveItemId &&
+                folder.ParentFolderId ==
+                destinationFolderId &&
+                string.Equals(
+                    folder.Name,
+                    _moveItemName,
+                    StringComparison.OrdinalIgnoreCase));
+
+        return hasNameConflict
+            ? "That destination already contains a folder " +
+              "with this name."
+            : null;
+    }
+
+    private void MoveSelectedEntry(
+        Guid? destinationFolderId)
+    {
+        bool navigateToDestination =
+            _selectedFolder?.Kind is
+                VaultFolderFilterKind.Root or
+                VaultFolderFilterKind.Folder;
+
+        Guid entryId = _moveItemId;
+        string entryName = _moveItemName;
+
+        _session.MoveEntry(
+            entryId,
+            destinationFolderId);
+
+        ExpandMainFolderPath(
+            destinationFolderId);
+
+        CloseMoveDialog();
+
+        if (navigateToDestination)
+        {
+            RefreshBrowser(
+                selectedFolderKind:
+                    destinationFolderId.HasValue
+                        ? VaultFolderFilterKind.Folder
+                        : VaultFolderFilterKind.Root,
+                selectedFolderId:
+                    destinationFolderId,
+                selectedEntryId:
+                    entryId);
+        }
+        else
+        {
+            RefreshBrowser(
+                selectedEntryId:
+                    entryId);
+        }
+
+        RecordUnsavedChange(
+            $"ENTRY '{entryName}' MOVED");
+    }
+
+    private void MoveSelectedFolder(
+        Guid? destinationFolderId)
+    {
+        Guid folderId = _moveItemId;
+        string folderName = _moveItemName;
+
+        _session.MoveFolder(
+            folderId,
+            destinationFolderId);
+
+        ExpandMainFolderPath(
+            destinationFolderId);
+
+        CloseMoveDialog();
+
+        RefreshBrowser(
+            selectedFolderKind:
+                VaultFolderFilterKind.Folder,
+            selectedFolderId:
+                folderId);
+
+        RecordUnsavedChange(
+            $"FOLDER '{folderName}' MOVED");
+    }
+
+    private void ExpandMainFolderPath(
+        Guid? folderId)
+    {
+        _isRootExpanded = true;
+
+        Dictionary<Guid, FolderDescriptor> foldersById =
+            _session.Folders.ToDictionary(
+                folder => folder.FolderId);
+
+        HashSet<Guid> visited = [];
+        Guid? currentId = folderId;
+
+        while (currentId is Guid id &&
+               visited.Add(id) &&
+               foldersById.TryGetValue(
+                   id,
+                   out FolderDescriptor? folder))
+        {
+            _expandedFolderIds.Add(id);
+            currentId = folder.ParentFolderId;
+        }
+    }
+
+    private void ExpandMoveDestinationPath(
+        Guid? folderId,
+        IReadOnlyDictionary<Guid, FolderDescriptor> foldersById)
+    {
+        HashSet<Guid> visited = [];
+        Guid? currentId = folderId;
+
+        while (currentId is Guid id &&
+               visited.Add(id) &&
+               foldersById.TryGetValue(
+                   id,
+                   out FolderDescriptor? folder))
+        {
+            _expandedMoveDestinationIds.Add(id);
+            currentId = folder.ParentFolderId;
+        }
+    }
+
+    private static bool IsFolderOrDescendant(
+        Guid? possibleDescendantId,
+        Guid folderId,
+        IReadOnlyDictionary<Guid, FolderDescriptor> foldersById)
+    {
+        HashSet<Guid> visited = [];
+        Guid? currentId = possibleDescendantId;
+
+        while (currentId is Guid id &&
+               visited.Add(id))
+        {
+            if (id == folderId)
+            {
+                return true;
+            }
+
+            if (!foldersById.TryGetValue(
+                    id,
+                    out FolderDescriptor? folder))
+            {
+                return false;
+            }
+
+            currentId = folder.ParentFolderId;
+        }
+
+        return false;
+    }
+
+    private static string BuildFolderPath(
+        Guid? folderId,
+        IReadOnlyDictionary<Guid, FolderDescriptor> foldersById)
+    {
+        if (folderId is null)
+        {
+            return "ROOT";
+        }
+
+        Stack<string> names = [];
+        HashSet<Guid> visited = [];
+        Guid? currentId = folderId;
+
+        while (currentId is Guid id &&
+               visited.Add(id))
+        {
+            if (!foldersById.TryGetValue(
+                    id,
+                    out FolderDescriptor? folder))
+            {
+                throw new InvalidOperationException(
+                    $"Folder '{id}' does not exist.");
+            }
+
+            names.Push(folder.Name);
+            currentId = folder.ParentFolderId;
+        }
+
+        if (currentId.HasValue)
+        {
+            throw new InvalidOperationException(
+                "The folder hierarchy contains a cycle.");
+        }
+
+        return "ROOT / " +
+               string.Join(
+                   " / ",
+                   names);
+    }
+
     private async Task LockVaultCoreAsync()
     {
         ClearError();
@@ -1296,7 +1994,8 @@ public partial class MainVaultViewModel :
         VaultFolderListItemViewModel folder)
     {
         if (IsBusy ||
-            IsDialogOpen)
+            IsDialogOpen ||
+            IsMoveDialogOpen)
         {
             return;
         }
@@ -1313,6 +2012,7 @@ public partial class MainVaultViewModel :
 
         ApplyEntryFilter();
         DeleteFolderCommand.NotifyCanExecuteChanged();
+        OpenFolderMoveCommand.NotifyCanExecuteChanged();
     }
 
     private void ToggleFolderExpansion(
@@ -1320,6 +2020,7 @@ public partial class MainVaultViewModel :
     {
         if (IsBusy ||
             IsDialogOpen ||
+            IsMoveDialogOpen ||
             !folder.IsExpandable)
         {
             return;
@@ -1410,7 +2111,8 @@ public partial class MainVaultViewModel :
         VaultTagListItemViewModel tag)
     {
         if (IsBusy ||
-            IsDialogOpen)
+            IsDialogOpen ||
+            IsMoveDialogOpen)
         {
             return;
         }
@@ -1432,7 +2134,8 @@ public partial class MainVaultViewModel :
         VaultEntryListItemViewModel entry)
     {
         if (IsBusy ||
-            IsDialogOpen)
+            IsDialogOpen ||
+            IsMoveDialogOpen)
         {
             return;
         }
@@ -1453,13 +2156,15 @@ public partial class MainVaultViewModel :
             nameof(DeleteEntryActionText));
 
         DeleteEntryCommand.NotifyCanExecuteChanged();
+        OpenEntryMoveCommand.NotifyCanExecuteChanged();
     }
 
     private void SelectFolderEntry(
         VaultFolderEntryListItemViewModel entry)
     {
         if (IsBusy ||
-            IsDialogOpen)
+            IsDialogOpen ||
+            IsMoveDialogOpen)
         {
             return;
         }
@@ -1950,6 +2655,7 @@ public partial class MainVaultViewModel :
             nameof(DeleteEntryActionText));
 
         DeleteEntryCommand.NotifyCanExecuteChanged();
+        OpenEntryMoveCommand.NotifyCanExecuteChanged();
     }
 
     private IReadOnlyDictionary<Guid, EntrySessionState>
@@ -2257,6 +2963,8 @@ public partial class MainVaultViewModel :
         NewEntryCommand.NotifyCanExecuteChanged();
         NewFolderCommand.NotifyCanExecuteChanged();
         NewTagCommand.NotifyCanExecuteChanged();
+        OpenFolderMoveCommand.NotifyCanExecuteChanged();
+        OpenEntryMoveCommand.NotifyCanExecuteChanged();
         DeleteFolderCommand.NotifyCanExecuteChanged();
         DeleteTagCommand.NotifyCanExecuteChanged();
         DeleteEntryCommand.NotifyCanExecuteChanged();
@@ -2272,6 +2980,7 @@ public partial class MainVaultViewModel :
         CancelPasswordKdfSettingsCommand.NotifyCanExecuteChanged();
         RestoreDefaultPasswordKdfSettingsCommand.NotifyCanExecuteChanged();
         ApplyPasswordKdfSettingsCommand.NotifyCanExecuteChanged();
+        ConfirmMoveDialogCommand.NotifyCanExecuteChanged();
     }
 
     private static string FormatCharacterCount(
@@ -2309,6 +3018,13 @@ public partial class MainVaultViewModel :
             CryptographicException or
             UnauthorizedAccessException or
             KeyNotFoundException;
+    }
+
+    private enum MoveOperationKind
+    {
+        None,
+        Entry,
+        Folder
     }
 
     private enum DialogAction

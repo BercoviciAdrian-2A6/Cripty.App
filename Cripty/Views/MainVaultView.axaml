@@ -572,7 +572,7 @@
                                     BorderBrush="{StaticResource CriptyBorderBrush}"
                                     BorderThickness="0,0,0,1">
 
-                                <Grid ColumnDefinitions="*,Auto,Auto">
+                                <Grid ColumnDefinitions="*,Auto,Auto,Auto">
                                     <TextBlock Text="FOLDERS"
                                                VerticalAlignment="Center"
                                                FontSize="10"
@@ -590,6 +590,15 @@
                                     </Button>
 
                                     <Button Grid.Column="2"
+                                            Classes="sidebar-action"
+                                            Command="{Binding OpenFolderMoveCommand}"
+                                            Margin="0,0,6,0">
+
+                                        <TextBlock Text="MOVE"
+                                                   LetterSpacing="1" />
+                                    </Button>
+
+                                    <Button Grid.Column="3"
                                             Classes="sidebar-action danger"
                                             Command="{Binding DeleteFolderCommand}">
 
@@ -784,7 +793,7 @@
                             BorderThickness="0,0,0,1">
 
                         <Grid RowDefinitions="Auto,Auto">
-                            <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+                            <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto">
                                 <StackPanel Spacing="4">
                                     <TextBlock Text="{Binding CurrentFilterTitle}"
                                                FontSize="19"
@@ -826,6 +835,18 @@
                                 </Button>
 
                                 <Button Grid.Column="3"
+                                        Classes="ghost"
+                                        Command="{Binding OpenEntryMoveCommand}"
+                                        Margin="0,0,8,0"
+                                        VerticalAlignment="Center">
+
+                                    <TextBlock Text="MOVE ENTRY"
+                                               FontSize="9"
+                                               FontWeight="SemiBold"
+                                               LetterSpacing="1" />
+                                </Button>
+
+                                <Button Grid.Column="4"
                                         Classes="danger"
                                         Command="{Binding DeleteEntryCommand}"
                                         VerticalAlignment="Center">
@@ -1485,6 +1506,210 @@
                         </Grid>
                     </StackPanel>
                 </ScrollViewer>
+            </Border>
+        </Border>
+
+        <!-- Entry/folder move destination dialog -->
+        <Border Grid.RowSpan="2"
+                ZIndex="100"
+                IsVisible="{Binding IsMoveDialogOpen}"
+                Background="#E607110D">
+
+            <Border Width="640"
+                    Margin="18"
+                    Padding="20"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Background="{StaticResource CriptySurfaceBrush}"
+                    BorderBrush="{StaticResource CriptyBorderBrightBrush}"
+                    BorderThickness="1"
+                    CornerRadius="5">
+
+                <StackPanel Spacing="14">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <StackPanel Spacing="5">
+                            <TextBlock Text="{Binding MoveDialogTitle}"
+                                       FontSize="21"
+                                       FontWeight="SemiBold"
+                                       LetterSpacing="1" />
+
+                            <TextBlock Text="{Binding MoveDialogDescription}"
+                                       FontSize="11"
+                                       LineHeight="17"
+                                       Foreground="{StaticResource CriptyTextMutedBrush}"
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
+
+                        <Button Grid.Column="1"
+                                Classes="ghost"
+                                Command="{Binding CancelMoveDialogCommand}"
+                                Margin="14,0,0,0"
+                                VerticalAlignment="Top">
+
+                            <TextBlock Text="CLOSE"
+                                       FontSize="9"
+                                       FontWeight="SemiBold"
+                                       LetterSpacing="1" />
+                        </Button>
+                    </Grid>
+
+                    <Border Padding="13"
+                            Background="#0A1C12"
+                            BorderBrush="{StaticResource CriptyBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="3">
+
+                        <Grid ColumnDefinitions="*,*">
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="MOVING"
+                                           FontSize="9"
+                                           FontWeight="SemiBold"
+                                           LetterSpacing="1.2"
+                                           Foreground="{StaticResource CriptyTextMutedBrush}" />
+
+                                <TextBlock Text="{Binding MoveItemName}"
+                                           FontSize="12"
+                                           FontWeight="SemiBold"
+                                           TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="1"
+                                        Spacing="4">
+                                <TextBlock Text="CURRENT LOCATION"
+                                           FontSize="9"
+                                           FontWeight="SemiBold"
+                                           LetterSpacing="1.2"
+                                           Foreground="{StaticResource CriptyTextMutedBrush}" />
+
+                                <TextBlock Text="{Binding MoveCurrentLocationText}"
+                                           FontSize="10"
+                                           TextTrimming="CharacterEllipsis"
+                                           ToolTip.Tip="{Binding MoveCurrentLocationText}" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <StackPanel Spacing="7">
+                        <TextBlock Text="DESTINATION FOLDER"
+                                   FontSize="9"
+                                   FontWeight="SemiBold"
+                                   LetterSpacing="1.3"
+                                   Foreground="{StaticResource CriptyTextMutedBrush}" />
+
+                        <Border Height="210"
+                                Background="#09150F"
+                                BorderBrush="{StaticResource CriptyBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="3">
+
+                            <ScrollViewer AllowAutoHide="False"
+                                          HorizontalScrollBarVisibility="Disabled"
+                                          VerticalScrollBarVisibility="Visible">
+
+                                <ItemsControl ItemsSource="{Binding MoveDestinationItems}"
+                                              Margin="8"
+                                              HorizontalAlignment="Stretch"
+                                              ItemContainerTheme="{StaticResource StretchingItemContainerTheme}">
+
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:VaultMoveDestinationItemViewModel">
+                                            <Grid>
+                                                <Button Classes="vault-nav"
+                                                        Classes.selected="{Binding IsSelected}"
+                                                        IsEnabled="{Binding IsSelectable}"
+                                                        Command="{Binding SelectCommand}"
+                                                        ToolTip.Tip="{Binding PathText}">
+
+                                                    <Grid ColumnDefinitions="Auto,18,*">
+                                                        <Border Width="{Binding IndentWidth}" />
+
+                                                        <StackPanel Grid.Column="2"
+                                                                    Spacing="2">
+                                                            <TextBlock Text="{Binding Name}"
+                                                                       FontSize="11"
+                                                                       FontWeight="SemiBold"
+                                                                       TextTrimming="CharacterEllipsis" />
+
+                                                            <TextBlock Text="{Binding DisabledReason}"
+                                                                       IsVisible="{Binding HasDisabledReason}"
+                                                                       FontSize="8"
+                                                                       Foreground="{StaticResource CriptyDangerBrush}"
+                                                                       TextTrimming="CharacterEllipsis" />
+                                                        </StackPanel>
+                                                    </Grid>
+                                                </Button>
+
+                                                <Grid ColumnDefinitions="Auto,18,*">
+                                                    <Border Width="{Binding IndentWidth}" />
+
+                                                    <Button Grid.Column="1"
+                                                            Classes="folder-toggle"
+                                                            IsVisible="{Binding IsExpandable}"
+                                                            Command="{Binding ToggleExpansionCommand}"
+                                                            ToolTip.Tip="Expand or collapse folder">
+
+                                                        <TextBlock Text="{Binding ExpansionGlyph}"
+                                                                   FontSize="10"
+                                                                   Foreground="{StaticResource CriptyAccentBrush}" />
+                                                    </Button>
+                                                </Grid>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </Border>
+                    </StackPanel>
+
+                    <Border Padding="11"
+                            Background="#0A1C12"
+                            BorderBrush="{StaticResource CriptyBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="3">
+
+                        <TextBlock Text="{Binding MoveDestinationText}"
+                                   FontSize="9"
+                                   FontWeight="SemiBold"
+                                   LetterSpacing="0.8"
+                                   Foreground="{StaticResource CriptyAccentBrush}"
+                                   TextTrimming="CharacterEllipsis" />
+                    </Border>
+
+                    <Border IsVisible="{Binding HasMoveDialogError}"
+                            Padding="11"
+                            Background="#291B13"
+                            BorderBrush="{StaticResource CriptyDangerBrush}"
+                            BorderThickness="1"
+                            CornerRadius="3">
+
+                        <TextBlock Text="{Binding MoveDialogErrorMessage}"
+                                   Foreground="{StaticResource CriptyDangerBrush}"
+                                   TextWrapping="Wrap" />
+                    </Border>
+
+                    <Grid ColumnDefinitions="*,Auto,Auto">
+                        <Button Grid.Column="1"
+                                Classes="ghost"
+                                Command="{Binding CancelMoveDialogCommand}"
+                                Margin="0,0,8,0">
+
+                            <TextBlock Text="CANCEL"
+                                       FontSize="10"
+                                       FontWeight="SemiBold"
+                                       LetterSpacing="1" />
+                        </Button>
+
+                        <Button Grid.Column="2"
+                                Classes="primary"
+                                Command="{Binding ConfirmMoveDialogCommand}">
+
+                            <TextBlock Text="{Binding MoveDialogActionText}"
+                                       FontSize="10"
+                                       FontWeight="SemiBold"
+                                       LetterSpacing="1" />
+                        </Button>
+                    </Grid>
+                </StackPanel>
             </Border>
         </Border>
 

@@ -28,6 +28,12 @@ public sealed class VaultSession : IAsyncDisposable
     private readonly HashSet<Guid>
         _entriesPendingDeletion = [];
 
+    // Entry metadata changes are persisted in the manifest rather
+    // than in the encrypted entry file. Track affected entries so
+    // the UI can distinguish them from unchanged entries.
+    private readonly HashSet<Guid>
+        _entriesWithPendingMetadataChanges = [];
+
     // Files belonging to entries already removed from the
     // persisted manifest, but whose physical deletion failed.
     private readonly HashSet<Guid>
@@ -509,6 +515,9 @@ public sealed class VaultSession : IAsyncDisposable
                 _entriesPendingDeletion.Remove(
                     entryId);
 
+                _entriesWithPendingMetadataChanges.Remove(
+                    entryId);
+
                 RecordManifestChange(
                     rebuildIndex: true);
             }
@@ -566,6 +575,9 @@ public sealed class VaultSession : IAsyncDisposable
                     entryId,
                     out PendingEntryChange? pendingChange)
                     ? pendingChange.Kind
+                    : _entriesWithPendingMetadataChanges.Contains(
+                        entryId)
+                        ? EntryChangeKind.Modified
                     : EntryChangeKind.None;
 
             return new EntrySessionState(
@@ -738,6 +750,9 @@ public sealed class VaultSession : IAsyncDisposable
             Manifest.MoveEntry(
                 entryId,
                 destinationFolderId);
+
+            _entriesWithPendingMetadataChanges.Add(
+                entryId);
 
             RecordManifestChange(
                 rebuildIndex: true);
@@ -987,6 +1002,7 @@ public sealed class VaultSession : IAsyncDisposable
 
         _pendingEntryChanges.Clear();
         _entriesPendingDeletion.Clear();
+        _entriesWithPendingMetadataChanges.Clear();
 
         RebuildIndex();
     }

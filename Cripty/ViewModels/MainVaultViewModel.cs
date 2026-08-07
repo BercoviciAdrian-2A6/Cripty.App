@@ -266,6 +266,11 @@ public partial class MainVaultViewModel :
             ? "SAVING..."
             : "SAVE";
 
+    public string DeleteEntryActionText =>
+        _selectedEntry?.IsPendingDeletion == true
+            ? "UNMARK DELETION"
+            : "DELETE ENTRY";
+
     private bool CanMutateVault()
     {
         return !IsBusy &&
@@ -458,6 +463,12 @@ public partial class MainVaultViewModel :
     [RelayCommand(CanExecute = nameof(CanDeleteEntry))]
     private void DeleteEntry()
     {
+        if (_selectedEntry!.IsPendingDeletion)
+        {
+            UndoSelectedEntryDeletion();
+            return;
+        }
+
         OpenConfirmationDialog(
             DialogAction.DeleteEntry,
             "DELETE ENTRY?",
@@ -491,7 +502,7 @@ public partial class MainVaultViewModel :
         {
             ErrorMessage = exception.Message;
             SaveStatusText = "SAVE FAILED · RETRY REQUIRED";
-            RefreshSessionFlags();
+            RefreshBrowser();
         }
         finally
         {
@@ -745,10 +756,32 @@ public partial class MainVaultViewModel :
             entry.EntryId);
 
         RefreshBrowser(
-            selectedEntryId: null);
+            selectedEntryId: entry.EntryId);
 
         RecordUnsavedChange(
             $"ENTRY '{entry.Name}' MARKED FOR DELETION");
+    }
+
+    private void UndoSelectedEntryDeletion()
+    {
+        VaultEntryListItemViewModel entry =
+            _selectedEntry ??
+            throw new InvalidOperationException(
+                "Select an entry before undoing its deletion.");
+
+        _session.UndoEntryDeletion(
+            entry.EntryId);
+
+        RefreshBrowser(
+            selectedEntryId: entry.EntryId);
+
+        RefreshSessionFlags();
+
+        SaveStatusText = HasSaveWork
+            ? $"UNSAVED · ENTRY '{entry.Name}' DELETION UNMARKED"
+            : $"NO UNSAVED CHANGES · ENTRY '{entry.Name}' DELETION UNMARKED";
+
+        ClearError();
     }
 
     private async Task LockVaultCoreAsync()
@@ -900,6 +933,9 @@ public partial class MainVaultViewModel :
                 ReferenceEquals(item, entry));
         }
 
+        OnPropertyChanged(
+            nameof(DeleteEntryActionText));
+
         DeleteEntryCommand.NotifyCanExecuteChanged();
     }
 
@@ -937,20 +973,16 @@ public partial class MainVaultViewModel :
             _session.EntriesPendingDeletion
                 .ToHashSet();
 
-        EntryDescriptor[] activeEntries =
-            _session.Entries
-                .Where(entry =>
-                    !pendingDeletionIds.Contains(
-                        entry.EntryId))
-                .ToArray();
+        EntryDescriptor[] entries =
+            [.. _session.Entries];
 
         RebuildFolderItems(
             folders,
-            activeEntries);
+            entries);
 
         RebuildTagItems(
             tags,
-            activeEntries);
+            entries);
 
         _selectedFolder =
             FindFolderSelection(
@@ -979,9 +1011,10 @@ public partial class MainVaultViewModel :
         }
 
         ApplyEntryFilter(
-            activeEntries,
+            entries,
             folders,
             tags,
+            pendingDeletionIds,
             entryId);
 
         RefreshSessionFlags();
@@ -1130,13 +1163,11 @@ public partial class MainVaultViewModel :
     private void ApplyEntryFilter()
     {
         ApplyEntryFilter(
-            _session.Entries
-                .Where(entry =>
-                    !_session.EntriesPendingDeletion
-                        .Contains(entry.EntryId))
-                .ToArray(),
+            _session.Entries,
             _session.Folders,
             _session.Tags,
+            _session.EntriesPendingDeletion
+                .ToHashSet(),
             selectedEntryId: null);
     }
 
@@ -1144,6 +1175,7 @@ public partial class MainVaultViewModel :
         IReadOnlyCollection<EntryDescriptor> entries,
         IReadOnlyCollection<FolderDescriptor> folders,
         IReadOnlyCollection<TagDescriptor> tags,
+        IReadOnlySet<Guid> pendingDeletionIds,
         Guid? selectedEntryId)
     {
         IEnumerable<EntryDescriptor> filtered =
@@ -1229,6 +1261,8 @@ public partial class MainVaultViewModel :
                     entry.Revision,
                     entry.CreatedUtc,
                     entry.ModifiedUtc,
+                    pendingDeletionIds.Contains(
+                        entry.EntryId),
                     SelectEntry));
         }
 
@@ -1262,6 +1296,9 @@ public partial class MainVaultViewModel :
             : $"{EntryItems.Count} ENTRIES";
 
         HasEntries = EntryItems.Count > 0;
+
+        OnPropertyChanged(
+            nameof(DeleteEntryActionText));
 
         DeleteEntryCommand.NotifyCanExecuteChanged();
     }

@@ -258,6 +258,7 @@ public partial class VaultEntryListItemViewModel :
         long revision,
         DateTimeOffset createdUtc,
         DateTimeOffset modifiedUtc,
+        bool isPendingDeletion,
         Action<VaultEntryListItemViewModel> select)
     {
         EntryId = entryId;
@@ -265,6 +266,7 @@ public partial class VaultEntryListItemViewModel :
         LocationText = locationText;
         TagSummary = tagSummary;
         RevisionText = $"REVISION {revision}";
+        IsPendingDeletion = isPendingDeletion;
 
         CreatedText =
             $"CREAT {createdUtc.ToLocalTime():yyyy-MM-dd HH:mm}";
@@ -290,6 +292,8 @@ public partial class VaultEntryListItemViewModel :
     public string CreatedText { get; }
 
     public string ModifiedText { get; }
+
+    public bool IsPendingDeletion { get; }
 
     [ObservableProperty]
     public partial bool IsSelected

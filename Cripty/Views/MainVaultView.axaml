@@ -204,6 +204,42 @@
                     Value="#214E32" />
         </Style>
 
+        <Style Selector="Button.entry-row.pending-deletion">
+            <Setter Property="Background"
+                    Value="#291B13" />
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource CriptyDangerBrush}" />
+        </Style>
+
+        <Style Selector="Button.entry-row.pending-deletion /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background"
+                    Value="#291B13" />
+        </Style>
+
+        <Style Selector="Button.entry-row.pending-deletion:pointerover">
+            <Setter Property="Background"
+                    Value="#48271A" />
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource CriptyDangerBrush}" />
+        </Style>
+
+        <Style Selector="Button.entry-row.pending-deletion:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background"
+                    Value="#48271A" />
+        </Style>
+
+        <Style Selector="Button.entry-row.pending-deletion.selected">
+            <Setter Property="Background"
+                    Value="#48271A" />
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource CriptyDangerBrush}" />
+        </Style>
+
+        <Style Selector="Button.entry-row.pending-deletion.selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background"
+                    Value="#48271A" />
+        </Style>
+
         <Style Selector="Button.danger">
             <Setter Property="Background"
                     Value="#291B13" />
@@ -412,7 +448,6 @@
                             </Border>
 
                             <ScrollViewer Grid.Row="1"
-                                          Padding="10"
                                           MinHeight="0"
                                           VerticalAlignment="Stretch"
                                           AllowAutoHide="False"
@@ -420,6 +455,7 @@
                                           VerticalScrollBarVisibility="Visible">
 
                                 <ItemsControl ItemsSource="{Binding FolderItems}"
+                                              Margin="10"
                                               HorizontalAlignment="Stretch"
                                               ItemContainerTheme="{StaticResource StretchingItemContainerTheme}">
 
@@ -508,7 +544,6 @@
                             </Border>
 
                             <ScrollViewer Grid.Row="1"
-                                          Padding="10"
                                           MinHeight="0"
                                           VerticalAlignment="Stretch"
                                           AllowAutoHide="False"
@@ -516,6 +551,7 @@
                                           VerticalScrollBarVisibility="Visible">
 
                                 <ItemsControl ItemsSource="{Binding TagItems}"
+                                              Margin="10"
                                               HorizontalAlignment="Stretch"
                                               ItemContainerTheme="{StaticResource StretchingItemContainerTheme}">
 
@@ -615,7 +651,7 @@
                                         Command="{Binding DeleteEntryCommand}"
                                         VerticalAlignment="Center">
 
-                                    <TextBlock Text="DELETE ENTRY"
+                                    <TextBlock Text="{Binding DeleteEntryActionText}"
                                                FontSize="9"
                                                FontWeight="SemiBold"
                                                LetterSpacing="1" />
@@ -657,7 +693,6 @@
                           ClipToBounds="True">
 
                         <ScrollViewer Grid.Column="0"
-                                      Padding="24"
                                       MinHeight="0"
                                       VerticalAlignment="Stretch"
                                       AllowAutoHide="False"
@@ -666,6 +701,7 @@
                                       IsVisible="{Binding HasEntries}">
 
                             <ItemsControl ItemsSource="{Binding EntryItems}"
+                                          Margin="24"
                                           HorizontalAlignment="Stretch"
                                           ItemContainerTheme="{StaticResource StretchingItemContainerTheme}">
 
@@ -673,6 +709,7 @@
                                     <DataTemplate x:DataType="vm:VaultEntryListItemViewModel">
                                         <Button Classes="entry-row"
                                                 Classes.selected="{Binding IsSelected}"
+                                                Classes.pending-deletion="{Binding IsPendingDeletion}"
                                                 HorizontalAlignment="Stretch"
                                                 Command="{Binding SelectCommand}">
 
@@ -693,6 +730,13 @@
                                                                LetterSpacing="0.7"
                                                                Foreground="{StaticResource CriptyTextMutedBrush}"
                                                                TextTrimming="CharacterEllipsis" />
+
+                                                    <TextBlock Text="MARKED FOR DELETION · SAVE TO APPLY"
+                                                               IsVisible="{Binding IsPendingDeletion}"
+                                                               FontSize="9"
+                                                               FontWeight="SemiBold"
+                                                               LetterSpacing="0.8"
+                                                               Foreground="{StaticResource CriptyDangerBrush}" />
                                                 </StackPanel>
 
                                                 <StackPanel Grid.Column="1"

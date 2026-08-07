@@ -12,6 +12,7 @@
         <Color x:Key="CriptyAccentColor">#71F79F</Color>
         <Color x:Key="CriptyAccentDarkColor">#173E28</Color>
         <Color x:Key="CriptyDangerColor">#FF9B72</Color>
+        <Color x:Key="CriptyInfoColor">#69BFF8</Color>
 
         <SolidColorBrush x:Key="CriptyBackgroundBrush"
                          Color="{StaticResource CriptyBackgroundColor}" />
@@ -33,6 +34,44 @@
                          Color="{StaticResource CriptyAccentDarkColor}" />
         <SolidColorBrush x:Key="CriptyDangerBrush"
                          Color="{StaticResource CriptyDangerColor}" />
+        <SolidColorBrush x:Key="CriptyInfoBrush"
+                         Color="{StaticResource CriptyInfoColor}" />
+
+        <!-- Fluent ScrollBar resources, recoloured for Cripty. -->
+        <SolidColorBrush x:Key="ScrollBarBackground"
+                         Color="#07110D" />
+        <SolidColorBrush x:Key="ScrollBarBackgroundPointerOver"
+                         Color="#09150F" />
+        <SolidColorBrush x:Key="ScrollBarForeground"
+                         Color="{StaticResource CriptyTextMutedColor}" />
+        <SolidColorBrush x:Key="ScrollBarBorderBrush"
+                         Color="{StaticResource CriptyBorderColor}" />
+        <SolidColorBrush x:Key="ScrollBarTrackFill"
+                         Color="#0B1812" />
+        <SolidColorBrush x:Key="ScrollBarTrackFillPointerOver"
+                         Color="#10241A" />
+        <SolidColorBrush x:Key="ScrollBarTrackStroke"
+                         Color="{StaticResource CriptyBorderColor}" />
+        <SolidColorBrush x:Key="ScrollBarTrackStrokePointerOver"
+                         Color="{StaticResource CriptyBorderBrightColor}" />
+        <Color x:Key="ScrollBarThumbBackgroundColor">#4C9A69</Color>
+        <Color x:Key="ScrollBarPanningThumbBackgroundColor">#356E4D</Color>
+        <SolidColorBrush x:Key="ScrollBarPanningThumbBackground"
+                         Color="{StaticResource ScrollBarPanningThumbBackgroundColor}" />
+        <SolidColorBrush x:Key="ScrollBarThumbFillPointerOver"
+                         Color="{StaticResource CriptyAccentColor}" />
+        <SolidColorBrush x:Key="ScrollBarThumbFillPressed"
+                         Color="#58D985" />
+        <SolidColorBrush x:Key="ScrollBarThumbFillDisabled"
+                         Color="{StaticResource CriptyBorderColor}" />
+        <SolidColorBrush x:Key="ScrollBarButtonArrowForeground"
+                         Color="{StaticResource CriptyTextMutedColor}" />
+        <SolidColorBrush x:Key="ScrollBarButtonArrowForegroundPointerOver"
+                         Color="{StaticResource CriptyAccentColor}" />
+        <SolidColorBrush x:Key="ScrollBarButtonArrowForegroundPressed"
+                         Color="{StaticResource CriptyAccentColor}" />
+        <SolidColorBrush x:Key="ScrollBarButtonArrowForegroundDisabled"
+                         Color="{StaticResource CriptyBorderColor}" />
     </Styles.Resources>
 
     <Style Selector="Window">

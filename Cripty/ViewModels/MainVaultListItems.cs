@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Cripty.Application.Vaults;
 
 namespace Cripty.ViewModels;
 
@@ -108,6 +109,8 @@ public partial class VaultFolderListItemViewModel :
         int entryCount,
         bool isExpandable,
         bool isExpanded,
+        IReadOnlyList<VaultFolderEntryListItemViewModel>
+            containedEntries,
         Action<VaultFolderListItemViewModel> select,
         Action<VaultFolderListItemViewModel> toggleExpansion)
     {
@@ -119,6 +122,9 @@ public partial class VaultFolderListItemViewModel :
         EntryCountText = FormatCount(entryCount);
         IsExpandable = isExpandable;
         IsExpanded = isExpanded;
+        ContainedEntries = containedEntries ??
+            throw new ArgumentNullException(
+                nameof(containedEntries));
 
         _select = select ??
             throw new ArgumentNullException(
@@ -144,6 +150,14 @@ public partial class VaultFolderListItemViewModel :
     public bool IsExpandable { get; }
 
     public bool IsExpanded { get; }
+
+    public IReadOnlyList<
+        VaultFolderEntryListItemViewModel> ContainedEntries
+    { get; }
+
+    public bool ShowsContainedEntries =>
+        IsExpanded &&
+        ContainedEntries.Count > 0;
 
     public string ExpansionGlyph =>
         !IsExpandable
@@ -189,6 +203,77 @@ public partial class VaultFolderListItemViewModel :
         return entryCount == 1
             ? "1 ENTRY"
             : $"{entryCount} ENTRIES";
+    }
+}
+
+public partial class VaultFolderEntryListItemViewModel :
+    ViewModelBase
+{
+    private readonly Action<
+        VaultFolderEntryListItemViewModel> _select;
+
+    public VaultFolderEntryListItemViewModel(
+        Guid entryId,
+        Guid folderId,
+        string name,
+        int depth,
+        EntrySessionState sessionState,
+        Action<VaultFolderEntryListItemViewModel> select)
+    {
+        EntryId = entryId;
+        FolderId = folderId;
+        Name = name;
+        IndentWidth = Math.Max(0, depth) * 14;
+
+        IsPendingDeletion =
+            sessionState.IsPendingDeletion;
+
+        IsNewEntry =
+            !IsPendingDeletion &&
+            sessionState.ChangeKind ==
+            EntryChangeKind.New;
+
+        IsModifiedEntry =
+            !IsPendingDeletion &&
+            sessionState.ChangeKind ==
+            EntryChangeKind.Modified;
+
+        _select = select ??
+            throw new ArgumentNullException(
+                nameof(select));
+    }
+
+    public Guid EntryId { get; }
+
+    public Guid FolderId { get; }
+
+    public string Name { get; }
+
+    public double IndentWidth { get; }
+
+    public bool IsPendingDeletion { get; }
+
+    public bool IsNewEntry { get; }
+
+    public bool IsModifiedEntry { get; }
+
+    [ObservableProperty]
+    public partial bool IsSelected
+    {
+        get;
+        private set;
+    }
+
+    [RelayCommand]
+    private void Select()
+    {
+        _select(this);
+    }
+
+    internal void SetSelected(
+        bool isSelected)
+    {
+        IsSelected = isSelected;
     }
 }
 
@@ -258,7 +343,7 @@ public partial class VaultEntryListItemViewModel :
         long revision,
         DateTimeOffset createdUtc,
         DateTimeOffset modifiedUtc,
-        bool isPendingDeletion,
+        EntrySessionState sessionState,
         Action<VaultEntryListItemViewModel> select)
     {
         EntryId = entryId;
@@ -266,7 +351,19 @@ public partial class VaultEntryListItemViewModel :
         LocationText = locationText;
         TagSummary = tagSummary;
         RevisionText = $"REVISION {revision}";
-        IsPendingDeletion = isPendingDeletion;
+
+        IsPendingDeletion =
+            sessionState.IsPendingDeletion;
+
+        IsNewEntry =
+            !IsPendingDeletion &&
+            sessionState.ChangeKind ==
+            EntryChangeKind.New;
+
+        IsModifiedEntry =
+            !IsPendingDeletion &&
+            sessionState.ChangeKind ==
+            EntryChangeKind.Modified;
 
         CreatedText =
             $"CREAT {createdUtc.ToLocalTime():yyyy-MM-dd HH:mm}";
@@ -294,6 +391,10 @@ public partial class VaultEntryListItemViewModel :
     public string ModifiedText { get; }
 
     public bool IsPendingDeletion { get; }
+
+    public bool IsNewEntry { get; }
+
+    public bool IsModifiedEntry { get; }
 
     [ObservableProperty]
     public partial bool IsSelected

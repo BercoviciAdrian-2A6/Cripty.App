@@ -150,6 +150,86 @@
                     Value="#214E32" />
         </Style>
 
+        <Style Selector="Button.folder-entry">
+            <Setter Property="Margin"
+                    Value="0,0,0,2" />
+            <Setter Property="Padding"
+                    Value="10,6" />
+            <Setter Property="Background"
+                    Value="Transparent" />
+            <Setter Property="BorderBrush"
+                    Value="Transparent" />
+            <Setter Property="HorizontalContentAlignment"
+                    Value="Stretch" />
+        </Style>
+
+        <Style Selector="Button.folder-entry /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background"
+                    Value="Transparent" />
+            <Setter Property="HorizontalContentAlignment"
+                    Value="Stretch" />
+        </Style>
+
+        <Style Selector="Button.folder-entry:pointerover">
+            <Setter Property="Background"
+                    Value="#13291C" />
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource CriptyBorderBrush}" />
+        </Style>
+
+        <Style Selector="Button.folder-entry:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background"
+                    Value="#13291C" />
+        </Style>
+
+        <Style Selector="Button.folder-entry.selected">
+            <Setter Property="Background"
+                    Value="{StaticResource CriptyAccentDarkBrush}" />
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource CriptyAccentBrush}" />
+        </Style>
+
+        <Style Selector="Button.folder-entry.selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background"
+                    Value="{StaticResource CriptyAccentDarkBrush}" />
+        </Style>
+
+        <Style Selector="Button.folder-entry.new-entry">
+            <Setter Property="Background"
+                    Value="#0D2A19" />
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource CriptyAccentBrush}" />
+        </Style>
+
+        <Style Selector="Button.folder-entry.new-entry /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background"
+                    Value="#0D2A19" />
+        </Style>
+
+        <Style Selector="Button.folder-entry.modified-entry">
+            <Setter Property="Background"
+                    Value="#0B2030" />
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource CriptyInfoBrush}" />
+        </Style>
+
+        <Style Selector="Button.folder-entry.modified-entry /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background"
+                    Value="#0B2030" />
+        </Style>
+
+        <Style Selector="Button.folder-entry.pending-deletion">
+            <Setter Property="Background"
+                    Value="#291B13" />
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource CriptyDangerBrush}" />
+        </Style>
+
+        <Style Selector="Button.folder-entry.pending-deletion /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background"
+                    Value="#291B13" />
+        </Style>
+
         <Style Selector="Button.entry-row">
             <Setter Property="Margin"
                     Value="0,0,0,9" />
@@ -202,6 +282,78 @@
         <Style Selector="Button.entry-row.selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background"
                     Value="#214E32" />
+        </Style>
+
+        <Style Selector="Button.entry-row.new-entry">
+            <Setter Property="Background"
+                    Value="#0D2A19" />
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource CriptyAccentBrush}" />
+        </Style>
+
+        <Style Selector="Button.entry-row.new-entry /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background"
+                    Value="#0D2A19" />
+        </Style>
+
+        <Style Selector="Button.entry-row.new-entry:pointerover">
+            <Setter Property="Background"
+                    Value="#164627" />
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource CriptyAccentBrush}" />
+        </Style>
+
+        <Style Selector="Button.entry-row.new-entry:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background"
+                    Value="#164627" />
+        </Style>
+
+        <Style Selector="Button.entry-row.new-entry.selected">
+            <Setter Property="Background"
+                    Value="#164627" />
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource CriptyAccentBrush}" />
+        </Style>
+
+        <Style Selector="Button.entry-row.new-entry.selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background"
+                    Value="#164627" />
+        </Style>
+
+        <Style Selector="Button.entry-row.modified-entry">
+            <Setter Property="Background"
+                    Value="#0B2030" />
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource CriptyInfoBrush}" />
+        </Style>
+
+        <Style Selector="Button.entry-row.modified-entry /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background"
+                    Value="#0B2030" />
+        </Style>
+
+        <Style Selector="Button.entry-row.modified-entry:pointerover">
+            <Setter Property="Background"
+                    Value="#12344A" />
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource CriptyInfoBrush}" />
+        </Style>
+
+        <Style Selector="Button.entry-row.modified-entry:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background"
+                    Value="#12344A" />
+        </Style>
+
+        <Style Selector="Button.entry-row.modified-entry.selected">
+            <Setter Property="Background"
+                    Value="#12344A" />
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource CriptyInfoBrush}" />
+        </Style>
+
+        <Style Selector="Button.entry-row.modified-entry.selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background"
+                    Value="#12344A" />
         </Style>
 
         <Style Selector="Button.entry-row.pending-deletion">
@@ -461,44 +613,79 @@
 
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate x:DataType="vm:VaultFolderListItemViewModel">
-                                            <Grid>
-                                                <Button Classes="vault-nav"
-                                                        Classes.selected="{Binding IsSelected}"
-                                                        Command="{Binding SelectCommand}">
+                                            <StackPanel>
+                                                <Grid>
+                                                    <Button Classes="vault-nav"
+                                                            Classes.selected="{Binding IsSelected}"
+                                                            Command="{Binding SelectCommand}">
 
-                                                    <Grid ColumnDefinitions="Auto,18,*,Auto">
+                                                        <Grid ColumnDefinitions="Auto,18,*,Auto">
+                                                            <Border Width="{Binding IndentWidth}" />
+
+                                                            <TextBlock Grid.Column="2"
+                                                                       Text="{Binding Name}"
+                                                                       FontSize="11"
+                                                                       FontWeight="SemiBold"
+                                                                       TextTrimming="CharacterEllipsis" />
+
+                                                            <TextBlock Grid.Column="3"
+                                                                       Text="{Binding EntryCountText}"
+                                                                       Margin="8,0,0,0"
+                                                                       FontSize="8"
+                                                                       LetterSpacing="0.7"
+                                                                       Foreground="{StaticResource CriptyTextMutedBrush}" />
+                                                        </Grid>
+                                                    </Button>
+
+                                                    <Grid ColumnDefinitions="Auto,18,*">
                                                         <Border Width="{Binding IndentWidth}" />
 
-                                                        <TextBlock Grid.Column="2"
-                                                                   Text="{Binding Name}"
-                                                                   FontSize="11"
-                                                                   FontWeight="SemiBold"
-                                                                   TextTrimming="CharacterEllipsis" />
+                                                        <Button Grid.Column="1"
+                                                                Classes="folder-toggle"
+                                                                IsVisible="{Binding IsExpandable}"
+                                                                Command="{Binding ToggleExpansionCommand}"
+                                                                ToolTip.Tip="Expand or collapse folder">
 
-                                                        <TextBlock Grid.Column="3"
-                                                                   Text="{Binding EntryCountText}"
-                                                                   Margin="8,0,0,0"
-                                                                   FontSize="8"
-                                                                   LetterSpacing="0.7"
-                                                                   Foreground="{StaticResource CriptyTextMutedBrush}" />
+                                                            <TextBlock Text="{Binding ExpansionGlyph}"
+                                                                       FontSize="10"
+                                                                       Foreground="{StaticResource CriptyAccentBrush}" />
+                                                        </Button>
                                                     </Grid>
-                                                </Button>
-
-                                                <Grid ColumnDefinitions="Auto,18,*">
-                                                    <Border Width="{Binding IndentWidth}" />
-
-                                                    <Button Grid.Column="1"
-                                                            Classes="folder-toggle"
-                                                            IsVisible="{Binding IsExpandable}"
-                                                            Command="{Binding ToggleExpansionCommand}"
-                                                            ToolTip.Tip="Expand or collapse folder">
-
-                                                        <TextBlock Text="{Binding ExpansionGlyph}"
-                                                                   FontSize="10"
-                                                                   Foreground="{StaticResource CriptyAccentBrush}" />
-                                                    </Button>
                                                 </Grid>
-                                            </Grid>
+
+                                                <ItemsControl ItemsSource="{Binding ContainedEntries}"
+                                                              IsVisible="{Binding ShowsContainedEntries}"
+                                                              HorizontalAlignment="Stretch"
+                                                              ItemContainerTheme="{StaticResource StretchingItemContainerTheme}">
+
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate x:DataType="vm:VaultFolderEntryListItemViewModel">
+                                                            <Button Classes="folder-entry"
+                                                                    Classes.selected="{Binding IsSelected}"
+                                                                    Classes.new-entry="{Binding IsNewEntry}"
+                                                                    Classes.modified-entry="{Binding IsModifiedEntry}"
+                                                                    Classes.pending-deletion="{Binding IsPendingDeletion}"
+                                                                    Command="{Binding SelectCommand}"
+                                                                    ToolTip.Tip="Show entry">
+
+                                                                <Grid ColumnDefinitions="Auto,18,*">
+                                                                    <Border Width="{Binding IndentWidth}" />
+
+                                                                    <TextBlock Grid.Column="1"
+                                                                               Text="›"
+                                                                               HorizontalAlignment="Center"
+                                                                               Foreground="{StaticResource CriptyTextMutedBrush}" />
+
+                                                                    <TextBlock Grid.Column="2"
+                                                                               Text="{Binding Name}"
+                                                                               FontSize="10"
+                                                                               TextTrimming="CharacterEllipsis" />
+                                                                </Grid>
+                                                            </Button>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
@@ -709,6 +896,8 @@
                                     <DataTemplate x:DataType="vm:VaultEntryListItemViewModel">
                                         <Button Classes="entry-row"
                                                 Classes.selected="{Binding IsSelected}"
+                                                Classes.new-entry="{Binding IsNewEntry}"
+                                                Classes.modified-entry="{Binding IsModifiedEntry}"
                                                 Classes.pending-deletion="{Binding IsPendingDeletion}"
                                                 HorizontalAlignment="Stretch"
                                                 Command="{Binding SelectCommand}">
@@ -737,6 +926,20 @@
                                                                FontWeight="SemiBold"
                                                                LetterSpacing="0.8"
                                                                Foreground="{StaticResource CriptyDangerBrush}" />
+
+                                                    <TextBlock Text="NEW ENTRY · SAVE TO APPLY"
+                                                               IsVisible="{Binding IsNewEntry}"
+                                                               FontSize="9"
+                                                               FontWeight="SemiBold"
+                                                               LetterSpacing="0.8"
+                                                               Foreground="{StaticResource CriptyAccentBrush}" />
+
+                                                    <TextBlock Text="MODIFIED ENTRY · SAVE TO APPLY"
+                                                               IsVisible="{Binding IsModifiedEntry}"
+                                                               FontSize="9"
+                                                               FontWeight="SemiBold"
+                                                               LetterSpacing="0.8"
+                                                               Foreground="{StaticResource CriptyInfoBrush}" />
                                                 </StackPanel>
 
                                                 <StackPanel Grid.Column="1"

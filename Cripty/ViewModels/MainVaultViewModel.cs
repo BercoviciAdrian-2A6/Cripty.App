@@ -933,10 +933,41 @@ public partial class MainVaultViewModel :
                 ReferenceEquals(item, entry));
         }
 
+        SetSelectedSidebarEntry(
+            entry.EntryId);
+
         OnPropertyChanged(
             nameof(DeleteEntryActionText));
 
         DeleteEntryCommand.NotifyCanExecuteChanged();
+    }
+
+    private void SelectFolderEntry(
+        VaultFolderEntryListItemViewModel entry)
+    {
+        if (IsBusy ||
+            IsDialogOpen)
+        {
+            return;
+        }
+
+        // A sidebar entry is direct navigation. Clear filters
+        // which could otherwise hide the selected entry.
+        _selectedTag = null;
+
+        if (!string.IsNullOrEmpty(
+                SearchText))
+        {
+            SearchText = string.Empty;
+        }
+
+        RefreshBrowser(
+            selectedFolderKind:
+                VaultFolderFilterKind.Folder,
+            selectedFolderId:
+                entry.FolderId,
+            selectedEntryId:
+                entry.EntryId);
     }
 
     private void RefreshBrowser(
@@ -969,16 +1000,17 @@ public partial class MainVaultViewModel :
         TagDescriptor[] tags =
             [.. _session.Tags];
 
-        HashSet<Guid> pendingDeletionIds =
-            _session.EntriesPendingDeletion
-                .ToHashSet();
-
         EntryDescriptor[] entries =
             [.. _session.Entries];
 
+        IReadOnlyDictionary<Guid, EntrySessionState>
+            entrySessionStates =
+                BuildEntrySessionStates(entries);
+
         RebuildFolderItems(
             folders,
-            entries);
+            entries,
+            entrySessionStates);
 
         RebuildTagItems(
             tags,
@@ -1014,7 +1046,7 @@ public partial class MainVaultViewModel :
             entries,
             folders,
             tags,
-            pendingDeletionIds,
+            entrySessionStates,
             entryId);
 
         RefreshSessionFlags();
@@ -1023,7 +1055,9 @@ public partial class MainVaultViewModel :
 
     private void RebuildFolderItems(
         IReadOnlyCollection<FolderDescriptor> folders,
-        IReadOnlyCollection<EntryDescriptor> entries)
+        IReadOnlyCollection<EntryDescriptor> entries,
+        IReadOnlyDictionary<Guid, EntrySessionState>
+            entrySessionStates)
     {
         FolderItems.Clear();
 
@@ -1037,6 +1071,7 @@ public partial class MainVaultViewModel :
                 entries.Count,
                 isExpandable: false,
                 isExpanded: true,
+                containedEntries: [],
                 SelectFolder,
                 ToggleFolderExpansion));
 
@@ -1047,6 +1082,7 @@ public partial class MainVaultViewModel :
             depth: 1,
             folders,
             entries,
+            entrySessionStates,
             visited);
     }
 
@@ -1055,6 +1091,8 @@ public partial class MainVaultViewModel :
         int depth,
         IReadOnlyCollection<FolderDescriptor> folders,
         IReadOnlyCollection<EntryDescriptor> entries,
+        IReadOnlyDictionary<Guid, EntrySessionState>
+            entrySessionStates,
         HashSet<Guid> visited)
     {
         IEnumerable<FolderDescriptor> children =
@@ -1074,6 +1112,35 @@ public partial class MainVaultViewModel :
                 continue;
             }
 
+            EntryDescriptor[] containedEntries =
+                entries
+                    .Where(entry =>
+                        entry.FolderId ==
+                        folder.FolderId)
+                    .OrderBy(
+                        entry => entry.Name,
+                        StringComparer.OrdinalIgnoreCase)
+                    .ToArray();
+
+            VaultFolderEntryListItemViewModel[]
+                containedEntryItems =
+                    containedEntries
+                        .Select(entry =>
+                            new VaultFolderEntryListItemViewModel(
+                                entry.EntryId,
+                                folder.FolderId,
+                                entry.Name,
+                                depth + 1,
+                                entrySessionStates[
+                                    entry.EntryId],
+                                SelectFolderEntry))
+                        .ToArray();
+
+            bool hasChildFolders =
+                folders.Any(child =>
+                    child.ParentFolderId ==
+                    folder.FolderId);
+
             FolderItems.Add(
                 new VaultFolderListItemViewModel(
                     VaultFolderFilterKind.Folder,
@@ -1084,13 +1151,13 @@ public partial class MainVaultViewModel :
                     entries.Count(entry =>
                         entry.FolderId ==
                         folder.FolderId),
-                    isExpandable: folders.Any(
-                        child =>
-                            child.ParentFolderId ==
-                            folder.FolderId),
+                    isExpandable:
+                        hasChildFolders ||
+                        containedEntryItems.Length > 0,
                     isExpanded:
                         _expandedFolderIds.Contains(
                             folder.FolderId),
+                    containedEntryItems,
                     SelectFolder,
                     ToggleFolderExpansion));
 
@@ -1102,6 +1169,7 @@ public partial class MainVaultViewModel :
                     depth + 1,
                     folders,
                     entries,
+                    entrySessionStates,
                     visited);
             }
         }
@@ -1162,12 +1230,14 @@ public partial class MainVaultViewModel :
 
     private void ApplyEntryFilter()
     {
+        EntryDescriptor[] entries =
+            [.. _session.Entries];
+
         ApplyEntryFilter(
-            _session.Entries,
+            entries,
             _session.Folders,
             _session.Tags,
-            _session.EntriesPendingDeletion
-                .ToHashSet(),
+            BuildEntrySessionStates(entries),
             selectedEntryId: null);
     }
 
@@ -1175,7 +1245,8 @@ public partial class MainVaultViewModel :
         IReadOnlyCollection<EntryDescriptor> entries,
         IReadOnlyCollection<FolderDescriptor> folders,
         IReadOnlyCollection<TagDescriptor> tags,
-        IReadOnlySet<Guid> pendingDeletionIds,
+        IReadOnlyDictionary<Guid, EntrySessionState>
+            entrySessionStates,
         Guid? selectedEntryId)
     {
         IEnumerable<EntryDescriptor> filtered =
@@ -1261,8 +1332,8 @@ public partial class MainVaultViewModel :
                     entry.Revision,
                     entry.CreatedUtc,
                     entry.ModifiedUtc,
-                    pendingDeletionIds.Contains(
-                        entry.EntryId),
+                    entrySessionStates[
+                        entry.EntryId],
                     SelectEntry));
         }
 
@@ -1281,6 +1352,9 @@ public partial class MainVaultViewModel :
                     item,
                     _selectedEntry));
         }
+
+        SetSelectedSidebarEntry(
+            _selectedEntry?.EntryId);
 
         CurrentFilterTitle =
             _selectedFolder?.Name ??
@@ -1301,6 +1375,29 @@ public partial class MainVaultViewModel :
             nameof(DeleteEntryActionText));
 
         DeleteEntryCommand.NotifyCanExecuteChanged();
+    }
+
+    private IReadOnlyDictionary<Guid, EntrySessionState>
+        BuildEntrySessionStates(
+            IEnumerable<EntryDescriptor> entries)
+    {
+        return entries.ToDictionary(
+            entry => entry.EntryId,
+            entry => _session.GetEntrySessionState(
+                entry.EntryId));
+    }
+
+    private void SetSelectedSidebarEntry(
+        Guid? selectedEntryId)
+    {
+        foreach (VaultFolderEntryListItemViewModel entry in
+                 FolderItems.SelectMany(folder =>
+                     folder.ContainedEntries))
+        {
+            entry.SetSelected(
+                entry.EntryId ==
+                selectedEntryId);
+        }
     }
 
     private IEnumerable<EntryDescriptor> SortEntries(

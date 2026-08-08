@@ -7,6 +7,17 @@
              VerticalAlignment="Stretch">
 
     <UserControl.Resources>
+        <SolidColorBrush x:Key="EntryEditorModifiedSurfaceBrush"
+                         Color="#0B2030" />
+        <SolidColorBrush x:Key="EntryEditorModifiedControlBrush"
+                         Color="#0A1A27" />
+        <SolidColorBrush x:Key="EntryEditorModifiedControlHoverBrush"
+                         Color="#102A3C" />
+        <SolidColorBrush x:Key="EntryEditorModifiedControlFocusedBrush"
+                         Color="#12344A" />
+        <SolidColorBrush x:Key="EntryEditorModifiedBorderBrush"
+                         Color="#2E7098" />
+
         <ControlTheme x:Key="EntryEditorStretchingItemContainerTheme"
                       TargetType="ContentPresenter">
             <Setter Property="HorizontalAlignment"
@@ -63,9 +74,158 @@
 
         <Style Selector="Border.entry-field.modified">
             <Setter Property="Background"
-                    Value="#0B2030" />
+                    Value="{StaticResource EntryEditorModifiedSurfaceBrush}" />
             <Setter Property="BorderBrush"
                     Value="{StaticResource CriptyInfoBrush}" />
+        </Style>
+
+        <Style Selector="Border.entry-field.modified TextBlock.field-accent">
+            <Setter Property="Foreground"
+                    Value="{StaticResource CriptyInfoBrush}" />
+        </Style>
+
+        <Style Selector="Border.entry-field.modified TextBox">
+            <Setter Property="Background"
+                    Value="{StaticResource EntryEditorModifiedControlBrush}" />
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource EntryEditorModifiedBorderBrush}" />
+            <Setter Property="CaretBrush"
+                    Value="{StaticResource CriptyInfoBrush}" />
+        </Style>
+
+        <Style Selector="Border.entry-field.modified TextBox /template/ Border#PART_BorderElement">
+            <Setter Property="Background"
+                    Value="{StaticResource EntryEditorModifiedControlBrush}" />
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource EntryEditorModifiedBorderBrush}" />
+        </Style>
+
+        <Style Selector="Border.entry-field.modified TextBox:pointerover">
+            <Setter Property="Background"
+                    Value="{StaticResource EntryEditorModifiedControlHoverBrush}" />
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource CriptyInfoBrush}" />
+        </Style>
+
+        <Style Selector="Border.entry-field.modified TextBox:pointerover /template/ Border#PART_BorderElement">
+            <Setter Property="Background"
+                    Value="{StaticResource EntryEditorModifiedControlHoverBrush}" />
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource CriptyInfoBrush}" />
+        </Style>
+
+        <Style Selector="Border.entry-field.modified TextBox:focus">
+            <Setter Property="Background"
+                    Value="{StaticResource EntryEditorModifiedControlFocusedBrush}" />
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource CriptyInfoBrush}" />
+        </Style>
+
+        <Style Selector="Border.entry-field.modified TextBox:focus /template/ Border#PART_BorderElement">
+            <Setter Property="Background"
+                    Value="{StaticResource EntryEditorModifiedControlFocusedBrush}" />
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource CriptyInfoBrush}" />
+            <Setter Property="BorderThickness"
+                    Value="2" />
+        </Style>
+
+        <Style Selector="Border.entry-field.modified Button.field-arrow">
+            <Setter Property="Background"
+                    Value="{StaticResource EntryEditorModifiedControlBrush}" />
+            <Setter Property="Foreground"
+                    Value="{StaticResource CriptyInfoBrush}" />
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource EntryEditorModifiedBorderBrush}" />
+        </Style>
+
+        <Style Selector="Border.entry-field.modified Button.field-arrow /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background"
+                    Value="{StaticResource EntryEditorModifiedControlBrush}" />
+            <Setter Property="Foreground"
+                    Value="{StaticResource CriptyInfoBrush}" />
+        </Style>
+
+        <Style Selector="Border.entry-field.modified Button.field-arrow TextBlock">
+            <Setter Property="Foreground"
+                    Value="{StaticResource CriptyInfoBrush}" />
+        </Style>
+
+        <Style Selector="Border.entry-field.modified Button.field-arrow:pointerover">
+            <Setter Property="Background"
+                    Value="{StaticResource EntryEditorModifiedControlFocusedBrush}" />
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource CriptyInfoBrush}" />
+        </Style>
+
+        <Style Selector="Border.entry-field.modified Button.field-arrow:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background"
+                    Value="{StaticResource EntryEditorModifiedControlFocusedBrush}" />
+            <Setter Property="Foreground"
+                    Value="{StaticResource CriptyInfoBrush}" />
+        </Style>
+
+        <Style Selector="Button.revert-changes">
+            <Setter Property="Background"
+                    Value="#C7DA55" />
+            <Setter Property="Foreground"
+                    Value="#0A160D" />
+            <Setter Property="BorderBrush"
+                    Value="#D8EB67" />
+        </Style>
+
+        <Style Selector="Button.revert-changes /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background"
+                    Value="#C7DA55" />
+            <Setter Property="Foreground"
+                    Value="#0A160D" />
+        </Style>
+
+        <Style Selector="Button.revert-changes TextBlock">
+            <Setter Property="Foreground"
+                    Value="#0A160D" />
+        </Style>
+
+        <Style Selector="Button.revert-changes:pointerover">
+            <Setter Property="Background"
+                    Value="#D9EC68" />
+            <Setter Property="Foreground"
+                    Value="#07110D" />
+            <Setter Property="BorderBrush"
+                    Value="#E5F47A" />
+        </Style>
+
+        <Style Selector="Button.revert-changes:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background"
+                    Value="#D9EC68" />
+            <Setter Property="Foreground"
+                    Value="#07110D" />
+        </Style>
+
+        <Style Selector="Button.revert-changes:pointerover TextBlock">
+            <Setter Property="Foreground"
+                    Value="#07110D" />
+        </Style>
+
+        <Style Selector="Button.revert-changes:pressed">
+            <Setter Property="Background"
+                    Value="#AFC044" />
+            <Setter Property="Foreground"
+                    Value="#07110D" />
+            <Setter Property="BorderBrush"
+                    Value="#C7DA55" />
+        </Style>
+
+        <Style Selector="Button.revert-changes:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background"
+                    Value="#AFC044" />
+            <Setter Property="Foreground"
+                    Value="#07110D" />
+        </Style>
+
+        <Style Selector="Button.revert-changes:pressed TextBlock">
+            <Setter Property="Foreground"
+                    Value="#07110D" />
         </Style>
     </UserControl.Styles>
 
@@ -120,7 +280,7 @@
                             Margin="18,0,0,0"
                             VerticalAlignment="Center">
 
-                    <Button Classes="ghost"
+                    <Button Classes="revert-changes"
                             IsVisible="{Binding HasRevertibleContentChanges}"
                             Command="{Binding RevertChangesCommand}"
                             ToolTip.Tip="Restore this entry's fields to their last saved names, contents, and order. Tags are unaffected.">
@@ -368,6 +528,7 @@
                                                        Foreground="{StaticResource CriptyTextMutedBrush}" />
 
                                             <TextBlock Text="{Binding PresetText}"
+                                                       Classes="field-accent"
                                                        FontSize="8"
                                                        LetterSpacing="0.8"
                                                        Foreground="{StaticResource CriptyAccentBrush}" />
@@ -434,7 +595,9 @@
                                                    Foreground="{StaticResource CriptyTextMutedBrush}" />
 
                                         <TextBox Text="{Binding Text, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                 Height="170"
+                                                 MinHeight="96"
+                                                 MaxHeight="320"
+                                                 VerticalAlignment="Top"
                                                  AcceptsReturn="True"
                                                  TextWrapping="Wrap"
                                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"

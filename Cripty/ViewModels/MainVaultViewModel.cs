@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Cripty.Application.Vaults;
+using Cripty.Core.Entries;
 using Cripty.Core.Vaults;
 using Cripty.Cryptography.Keys;
 
@@ -110,6 +111,19 @@ public partial class MainVaultViewModel :
         VaultEntryListItemViewModel> EntryItems
     { get; } = [];
 
+    [ObservableProperty]
+    public partial EntryEditorViewModel? EntryEditor
+    {
+        get;
+        private set;
+    }
+
+    public bool HasOpenEntry =>
+        EntryEditor is not null;
+
+    public bool IsEntryBrowserVisible =>
+        EntryEditor is null;
+
     public ObservableCollection<
         VaultMoveDestinationItemViewModel>
         MoveDestinationItems
@@ -143,6 +157,13 @@ public partial class MainVaultViewModel :
 
     [ObservableProperty]
     public partial bool HasSaveWork
+    {
+        get;
+        private set;
+    }
+
+    [ObservableProperty]
+    public partial bool HasEntryEditorValidationError
     {
         get;
         private set;
@@ -508,6 +529,8 @@ public partial class MainVaultViewModel :
     public string SaveActionText =>
         IsSaving
             ? "SAVING..."
+            : HasEntryEditorValidationError
+                ? "FIX ENTRY FIELDS"
             : "SAVE";
 
     public string DeleteEntryActionText =>
@@ -536,6 +559,14 @@ public partial class MainVaultViewModel :
                !_selectedEntry.IsPendingDeletion;
     }
 
+    private bool CanOpenEntry()
+    {
+        return CanMutateVault() &&
+               EntryEditor is null &&
+               _selectedEntry is not null &&
+               !_selectedEntry.IsPendingDeletion;
+    }
+
     private bool CanDeleteFolder()
     {
         return CanMutateVault() &&
@@ -557,6 +588,7 @@ public partial class MainVaultViewModel :
     private bool CanSave()
     {
         return !IsBusy &&
+               !HasEntryEditorValidationError &&
                HasSaveWork;
     }
 
@@ -642,6 +674,27 @@ public partial class MainVaultViewModel :
 
         OnPropertyChanged(
             nameof(PasswordChangeAvailabilityText));
+    }
+
+    partial void OnEntryEditorChanged(
+        EntryEditorViewModel? value)
+    {
+        OnPropertyChanged(
+            nameof(HasOpenEntry));
+
+        OnPropertyChanged(
+            nameof(IsEntryBrowserVisible));
+
+        OpenEntryCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnHasEntryEditorValidationErrorChanged(
+        bool value)
+    {
+        SaveCommand.NotifyCanExecuteChanged();
+
+        OnPropertyChanged(
+            nameof(SaveActionText));
     }
 
     partial void OnHasEntriesChanged(
@@ -860,6 +913,56 @@ public partial class MainVaultViewModel :
             "CREATE ENTRY");
     }
 
+    [RelayCommand(CanExecute = nameof(CanOpenEntry))]
+    private async Task OpenEntryAsync()
+    {
+        VaultEntryListItemViewModel selectedEntry =
+            _selectedEntry ??
+            throw new InvalidOperationException(
+                "Select an entry before opening it.");
+
+        ClearError();
+        IsBusy = true;
+
+        try
+        {
+            EntryDescriptor descriptor =
+                _session.Entries.Single(entry =>
+                    entry.EntryId ==
+                    selectedEntry.EntryId);
+
+            VaultEntry entry =
+                await _session.GetEntryAsync(
+                    selectedEntry.EntryId);
+
+            string locationText =
+                BuildFolderPath(
+                    descriptor.FolderId,
+                    _session.Folders.ToDictionary(
+                        folder => folder.FolderId));
+
+            EntryEditor =
+                new EntryEditorViewModel(
+                    _session,
+                    descriptor,
+                    entry,
+                    locationText,
+                    RecordUnsavedChange,
+                    SetEntryEditorValidationState,
+                    CloseEntryEditor);
+        }
+        catch (Exception exception)
+            when (IsExpectedOperationFailure(
+                exception))
+        {
+            ErrorMessage = exception.Message;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
     [RelayCommand(CanExecute = nameof(CanMoveFolder))]
     private void OpenFolderMove()
     {
@@ -997,6 +1100,9 @@ public partial class MainVaultViewModel :
     [RelayCommand(CanExecute = nameof(CanSave))]
     private async Task SaveAsync()
     {
+        Guid? openEntryId =
+            EntryEditor?.EntryId;
+
         ClearError();
         IsBusy = true;
         IsSaving = true;
@@ -1006,7 +1112,29 @@ public partial class MainVaultViewModel :
         {
             await _session.SaveAsync();
 
-            RefreshBrowser();
+            RefreshBrowser(
+                selectedEntryId:
+                    openEntryId);
+
+            if (EntryEditor is not null)
+            {
+                try
+                {
+                    await EntryEditor
+                        .ReloadFromSessionAsync();
+                }
+                catch (Exception reloadException)
+                    when (IsExpectedOperationFailure(
+                        reloadException))
+                {
+                    ErrorMessage =
+                        "The vault was saved, but the open entry " +
+                        "could not be refreshed: " +
+                        reloadException.Message;
+
+                    CloseEntryEditorWithoutRefresh();
+                }
+            }
 
             SaveStatusText =
                 $"SAVED {DateTime.Now:HH:mm:ss} · " +
@@ -1018,7 +1146,28 @@ public partial class MainVaultViewModel :
         {
             ErrorMessage = exception.Message;
             SaveStatusText = "SAVE FAILED · RETRY REQUIRED";
-            RefreshBrowser();
+
+            RefreshBrowser(
+                selectedEntryId:
+                    openEntryId);
+
+            if (EntryEditor is not null)
+            {
+                try
+                {
+                    await EntryEditor
+                        .ReloadFromSessionAsync();
+                }
+                catch (Exception reloadException)
+                    when (IsExpectedOperationFailure(
+                        reloadException))
+                {
+                    ErrorMessage =
+                        exception.Message +
+                        " The open entry could not be refreshed: " +
+                        reloadException.Message;
+                }
+            }
         }
         finally
         {
@@ -2000,6 +2149,8 @@ public partial class MainVaultViewModel :
             return;
         }
 
+        CloseEntryEditorWithoutRefresh();
+
         _selectedFolder = folder;
 
         foreach (VaultFolderListItemViewModel item
@@ -2117,6 +2268,8 @@ public partial class MainVaultViewModel :
             return;
         }
 
+        CloseEntryEditorWithoutRefresh();
+
         _selectedTag = tag;
 
         foreach (VaultTagListItemViewModel item
@@ -2156,6 +2309,7 @@ public partial class MainVaultViewModel :
             nameof(DeleteEntryActionText));
 
         DeleteEntryCommand.NotifyCanExecuteChanged();
+        OpenEntryCommand.NotifyCanExecuteChanged();
         OpenEntryMoveCommand.NotifyCanExecuteChanged();
     }
 
@@ -2168,6 +2322,8 @@ public partial class MainVaultViewModel :
         {
             return;
         }
+
+        CloseEntryEditorWithoutRefresh();
 
         // A sidebar entry is direct navigation. Clear filters
         // which could otherwise hide the selected entry.
@@ -2655,6 +2811,7 @@ public partial class MainVaultViewModel :
             nameof(DeleteEntryActionText));
 
         DeleteEntryCommand.NotifyCanExecuteChanged();
+        OpenEntryCommand.NotifyCanExecuteChanged();
         OpenEntryMoveCommand.NotifyCanExecuteChanged();
     }
 
@@ -2762,6 +2919,36 @@ public partial class MainVaultViewModel :
             $"UNSAVED · {statusMessage}";
 
         ClearError();
+    }
+
+    private void SetEntryEditorValidationState(
+        bool hasValidationError)
+    {
+        HasEntryEditorValidationError =
+            hasValidationError;
+    }
+
+    private void CloseEntryEditor()
+    {
+        Guid? entryId =
+            EntryEditor?.EntryId;
+
+        CloseEntryEditorWithoutRefresh();
+
+        RefreshBrowser(
+            selectedEntryId:
+                entryId);
+    }
+
+    private void CloseEntryEditorWithoutRefresh()
+    {
+        if (EntryEditor is null)
+        {
+            return;
+        }
+
+        EntryEditor = null;
+        HasEntryEditorValidationError = false;
     }
 
     private void OpenInputDialog(
@@ -2964,6 +3151,7 @@ public partial class MainVaultViewModel :
         NewFolderCommand.NotifyCanExecuteChanged();
         NewTagCommand.NotifyCanExecuteChanged();
         OpenFolderMoveCommand.NotifyCanExecuteChanged();
+        OpenEntryCommand.NotifyCanExecuteChanged();
         OpenEntryMoveCommand.NotifyCanExecuteChanged();
         DeleteFolderCommand.NotifyCanExecuteChanged();
         DeleteTagCommand.NotifyCanExecuteChanged();
@@ -3017,7 +3205,8 @@ public partial class MainVaultViewModel :
             IOException or
             CryptographicException or
             UnauthorizedAccessException or
-            KeyNotFoundException;
+            KeyNotFoundException or
+            NotSupportedException;
     }
 
     private enum MoveOperationKind

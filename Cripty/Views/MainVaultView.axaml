@@ -784,6 +784,7 @@
                 <Grid Grid.Column="1"
                       RowDefinitions="Auto,*"
                       MinHeight="0"
+                      IsVisible="{Binding IsEntryBrowserVisible}"
                       ClipToBounds="True">
 
                     <!-- Entry toolbar -->
@@ -793,7 +794,7 @@
                             BorderThickness="0,0,0,1">
 
                         <Grid RowDefinitions="Auto,Auto">
-                            <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto">
+                            <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto">
                                 <StackPanel Spacing="4">
                                     <TextBlock Text="{Binding CurrentFilterTitle}"
                                                FontSize="19"
@@ -836,6 +837,18 @@
 
                                 <Button Grid.Column="3"
                                         Classes="ghost"
+                                        Command="{Binding OpenEntryCommand}"
+                                        Margin="0,0,8,0"
+                                        VerticalAlignment="Center">
+
+                                    <TextBlock Text="OPEN ENTRY"
+                                               FontSize="9"
+                                               FontWeight="SemiBold"
+                                               LetterSpacing="1" />
+                                </Button>
+
+                                <Button Grid.Column="4"
+                                        Classes="ghost"
                                         Command="{Binding OpenEntryMoveCommand}"
                                         Margin="0,0,8,0"
                                         VerticalAlignment="Center">
@@ -846,7 +859,7 @@
                                                LetterSpacing="1" />
                                 </Button>
 
-                                <Button Grid.Column="4"
+                                <Button Grid.Column="5"
                                         Classes="danger"
                                         Command="{Binding DeleteEntryCommand}"
                                         VerticalAlignment="Center">
@@ -1007,6 +1020,13 @@
                         </StackPanel>
                     </Grid>
                 </Grid>
+
+                <ContentControl Grid.Column="1"
+                                Content="{Binding EntryEditor}"
+                                IsVisible="{Binding HasOpenEntry}"
+                                IsEnabled="{Binding !IsBusy}"
+                                HorizontalContentAlignment="Stretch"
+                                VerticalContentAlignment="Stretch" />
             </Grid>
         </Grid>
 

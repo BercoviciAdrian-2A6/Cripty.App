@@ -1,0 +1,524 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Cripty.ViewModels"
+             x:Class="Cripty.Views.EntryEditorView"
+             x:DataType="vm:EntryEditorViewModel"
+             HorizontalAlignment="Stretch"
+             VerticalAlignment="Stretch">
+
+    <UserControl.Resources>
+        <ControlTheme x:Key="EntryEditorStretchingItemContainerTheme"
+                      TargetType="ContentPresenter">
+            <Setter Property="HorizontalAlignment"
+                    Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment"
+                    Value="Stretch" />
+        </ControlTheme>
+    </UserControl.Resources>
+
+    <UserControl.Styles>
+        <Style Selector="Button.field-arrow">
+            <Setter Property="Width"
+                    Value="34" />
+            <Setter Property="Height"
+                    Value="32" />
+            <Setter Property="MinWidth"
+                    Value="0" />
+            <Setter Property="Padding"
+                    Value="0" />
+            <Setter Property="Background"
+                    Value="#0A1C12" />
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource CriptyBorderBrush}" />
+        </Style>
+
+        <Style Selector="Button.field-arrow:pointerover">
+            <Setter Property="Background"
+                    Value="{StaticResource CriptyAccentDarkBrush}" />
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource CriptyAccentBrush}" />
+        </Style>
+
+        <Style Selector="Button.tag-chip-remove">
+            <Setter Property="Width"
+                    Value="24" />
+            <Setter Property="Height"
+                    Value="24" />
+            <Setter Property="MinWidth"
+                    Value="0" />
+            <Setter Property="Padding"
+                    Value="0" />
+            <Setter Property="Background"
+                    Value="Transparent" />
+            <Setter Property="BorderBrush"
+                    Value="Transparent" />
+        </Style>
+
+        <Style Selector="Button.tag-chip-remove:pointerover">
+            <Setter Property="Background"
+                    Value="#48271A" />
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource CriptyDangerBrush}" />
+        </Style>
+    </UserControl.Styles>
+
+    <Grid RowDefinitions="Auto,*"
+          MinHeight="0"
+          Background="{StaticResource CriptyBackgroundBrush}"
+          ClipToBounds="True">
+
+        <!-- Entry editor toolbar -->
+        <Border Grid.Row="0"
+                Padding="26,18"
+                BorderBrush="{StaticResource CriptyBorderBrush}"
+                BorderThickness="0,0,0,1">
+
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Spacing="5">
+                    <TextBlock Text="ENTRY VIEW"
+                               FontSize="9"
+                               FontWeight="SemiBold"
+                               LetterSpacing="1.5"
+                               Foreground="{StaticResource CriptyAccentBrush}" />
+
+                    <TextBlock Text="{Binding EntryName}"
+                               FontSize="23"
+                               FontWeight="SemiBold"
+                               LetterSpacing="0.8"
+                               TextTrimming="CharacterEllipsis" />
+
+                    <StackPanel Orientation="Horizontal"
+                                Spacing="12">
+                        <TextBlock Text="{Binding LocationText}"
+                                   FontSize="9"
+                                   LetterSpacing="0.7"
+                                   Foreground="{StaticResource CriptyTextMutedBrush}" />
+
+                        <TextBlock Text="{Binding RevisionText}"
+                                   FontSize="9"
+                                   LetterSpacing="0.7"
+                                   Foreground="{StaticResource CriptyTextMutedBrush}" />
+
+                        <TextBlock Text="{Binding EntryStateText}"
+                                   FontSize="9"
+                                   FontWeight="SemiBold"
+                                   LetterSpacing="0.7"
+                                   Foreground="{StaticResource CriptyInfoBrush}" />
+                    </StackPanel>
+                </StackPanel>
+
+                <Button Grid.Column="1"
+                        Classes="ghost"
+                        Command="{Binding CloseCommand}"
+                        Margin="18,0,0,0"
+                        VerticalAlignment="Center">
+
+                    <TextBlock Text="BACK TO ENTRIES"
+                               FontSize="9"
+                               FontWeight="SemiBold"
+                               LetterSpacing="1" />
+                </Button>
+            </Grid>
+        </Border>
+
+        <ScrollViewer Grid.Row="1"
+                      MinHeight="0"
+                      AllowAutoHide="False"
+                      HorizontalScrollBarVisibility="Disabled"
+                      VerticalScrollBarVisibility="Visible">
+
+            <StackPanel Margin="26"
+                        Spacing="20">
+
+                <Border IsVisible="{Binding HasError}"
+                        Padding="11"
+                        Background="#291B13"
+                        BorderBrush="{StaticResource CriptyDangerBrush}"
+                        BorderThickness="1"
+                        CornerRadius="3">
+
+                    <TextBlock Text="{Binding ErrorMessage}"
+                               Foreground="{StaticResource CriptyDangerBrush}"
+                               TextWrapping="Wrap" />
+                </Border>
+
+                <Border IsVisible="{Binding HasValidationError}"
+                        Padding="11"
+                        Background="#291B13"
+                        BorderBrush="{StaticResource CriptyDangerBrush}"
+                        BorderThickness="1"
+                        CornerRadius="3">
+
+                    <TextBlock Text="{Binding ValidationMessage}"
+                               Foreground="{StaticResource CriptyDangerBrush}"
+                               TextWrapping="Wrap" />
+                </Border>
+
+                <!-- Entry tags -->
+                <Border Padding="17"
+                        Background="{StaticResource CriptySurfaceBrush}"
+                        BorderBrush="{StaticResource CriptyBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="4">
+
+                    <StackPanel Spacing="13">
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="TAGS"
+                                       FontSize="13"
+                                       FontWeight="SemiBold"
+                                       LetterSpacing="1.1" />
+
+                            <TextBlock Text="Assign existing vault tags to this entry. Tag changes remain staged until SAVE."
+                                       FontSize="9"
+                                       LineHeight="14"
+                                       Foreground="{StaticResource CriptyTextMutedBrush}"
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
+
+                        <TextBlock Text="NO TAGS ASSIGNED"
+                                   IsVisible="{Binding HasNoAssignedTags}"
+                                   FontSize="9"
+                                   LetterSpacing="1"
+                                   Foreground="{StaticResource CriptyTextMutedBrush}" />
+
+                        <ItemsControl ItemsSource="{Binding AssignedTags}"
+                                      IsVisible="{Binding HasAssignedTags}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel Orientation="Horizontal" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:EntryEditorTagViewModel">
+                                    <Border Margin="0,0,8,8"
+                                            Padding="9,4,4,4"
+                                            Background="#0D2A19"
+                                            BorderBrush="{StaticResource CriptyAccentBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="3">
+
+                                        <StackPanel Orientation="Horizontal"
+                                                    Spacing="5">
+                                            <TextBlock Text="#"
+                                                       VerticalAlignment="Center"
+                                                       FontSize="10"
+                                                       FontWeight="Bold"
+                                                       Foreground="{StaticResource CriptyAccentBrush}" />
+
+                                            <TextBlock Text="{Binding Name}"
+                                                       VerticalAlignment="Center"
+                                                       FontSize="10"
+                                                       FontWeight="SemiBold" />
+
+                                            <Button Classes="tag-chip-remove"
+                                                    Command="{Binding RemoveCommand}"
+                                                    ToolTip.Tip="Remove this tag from the entry">
+
+                                                <TextBlock Text="×"
+                                                           FontSize="13"
+                                                           FontWeight="Bold"
+                                                           Foreground="{StaticResource CriptyDangerBrush}" />
+                                            </Button>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <Grid ColumnDefinitions="*,Auto">
+                            <ComboBox ItemsSource="{Binding AvailableTags}"
+                                      SelectedItem="{Binding SelectedAvailableTag, Mode=TwoWay}"
+                                      IsEnabled="{Binding HasAvailableTags}"
+                                      HorizontalContentAlignment="Stretch">
+
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:EntryEditorTagOptionViewModel">
+                                        <TextBlock Text="{Binding Name}"
+                                                   FontSize="10" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+
+                            <Button Grid.Column="1"
+                                    Classes="primary"
+                                    Command="{Binding AddTagCommand}"
+                                    Margin="8,0,0,0">
+
+                                <TextBlock Text="ADD TAG"
+                                           FontSize="9"
+                                           FontWeight="SemiBold"
+                                           LetterSpacing="1" />
+                            </Button>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Entry fields -->
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="ENTRY FIELDS"
+                                   FontSize="13"
+                                   FontWeight="SemiBold"
+                                   LetterSpacing="1.1" />
+
+                        <TextBlock Text="Text can be any length. Use the arrows to control the stored field order."
+                                   FontSize="9"
+                                   LineHeight="14"
+                                   Foreground="{StaticResource CriptyTextMutedBrush}"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1"
+                                Orientation="Horizontal"
+                                Spacing="9"
+                                VerticalAlignment="Center">
+                        <Border Padding="10,6"
+                                Background="#0A1C12"
+                                BorderBrush="{StaticResource CriptyBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="3">
+
+                            <TextBlock Text="{Binding FieldCountText}"
+                                       FontSize="9"
+                                       FontWeight="SemiBold"
+                                       LetterSpacing="0.9"
+                                       Foreground="{StaticResource CriptyTextMutedBrush}" />
+                        </Border>
+
+                        <Button Classes="primary"
+                                Command="{Binding OpenAddFieldDialogCommand}">
+
+                            <TextBlock Text="ADD FIELD"
+                                       FontSize="9"
+                                       FontWeight="SemiBold"
+                                       LetterSpacing="1" />
+                        </Button>
+                    </StackPanel>
+                </Grid>
+
+                <Border IsVisible="{Binding HasNoFields}"
+                        Padding="28"
+                        Background="#09150F"
+                        BorderBrush="{StaticResource CriptyBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="4">
+
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="THIS ENTRY HAS NO FIELDS"
+                                   HorizontalAlignment="Center"
+                                   FontSize="13"
+                                   FontWeight="SemiBold"
+                                   LetterSpacing="1" />
+
+                        <TextBlock Text="Add a custom text field or choose a common field-name preset."
+                                   HorizontalAlignment="Center"
+                                   TextAlignment="Center"
+                                   FontSize="10"
+                                   Foreground="{StaticResource CriptyTextMutedBrush}"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+
+                <ItemsControl ItemsSource="{Binding Fields}"
+                              IsVisible="{Binding HasFields}"
+                              HorizontalAlignment="Stretch"
+                              ItemContainerTheme="{StaticResource EntryEditorStretchingItemContainerTheme}">
+
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:EntryTextFieldViewModel">
+                            <Border Margin="0,0,0,12"
+                                    Padding="16"
+                                    Background="{StaticResource CriptySurfaceBrush}"
+                                    BorderBrush="{StaticResource CriptyBorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="4">
+
+                                <StackPanel Spacing="11">
+                                    <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+                                        <StackPanel Spacing="4">
+                                            <TextBlock Text="{Binding PositionText}"
+                                                       FontSize="8"
+                                                       FontWeight="SemiBold"
+                                                       LetterSpacing="1"
+                                                       Foreground="{StaticResource CriptyTextMutedBrush}" />
+
+                                            <TextBlock Text="{Binding PresetText}"
+                                                       FontSize="8"
+                                                       LetterSpacing="0.8"
+                                                       Foreground="{StaticResource CriptyAccentBrush}" />
+                                        </StackPanel>
+
+                                        <Button Grid.Column="1"
+                                                Classes="field-arrow"
+                                                Command="{Binding MoveUpCommand}"
+                                                Margin="0,0,6,0"
+                                                ToolTip.Tip="Move field up">
+
+                                            <TextBlock Text="↑"
+                                                       FontSize="16"
+                                                       FontWeight="SemiBold" />
+                                        </Button>
+
+                                        <Button Grid.Column="2"
+                                                Classes="field-arrow"
+                                                Command="{Binding MoveDownCommand}"
+                                                Margin="0,0,8,0"
+                                                ToolTip.Tip="Move field down">
+
+                                            <TextBlock Text="↓"
+                                                       FontSize="16"
+                                                       FontWeight="SemiBold" />
+                                        </Button>
+
+                                        <Button Grid.Column="3"
+                                                Classes="danger"
+                                                Command="{Binding RemoveCommand}"
+                                                ToolTip.Tip="Remove field (staged until SAVE)">
+
+                                            <TextBlock Text="REMOVE"
+                                                       FontSize="9"
+                                                       FontWeight="SemiBold"
+                                                       LetterSpacing="0.8" />
+                                        </Button>
+                                    </Grid>
+
+                                    <StackPanel Spacing="6">
+                                        <TextBlock Text="FIELD NAME"
+                                                   FontSize="8"
+                                                   FontWeight="SemiBold"
+                                                   LetterSpacing="1.1"
+                                                   Foreground="{StaticResource CriptyTextMutedBrush}" />
+
+                                        <TextBox Text="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                 MaxLength="200"
+                                                 PlaceholderText="Field name" />
+                                    </StackPanel>
+
+                                    <StackPanel Spacing="6">
+                                        <TextBlock Text="CONTENT"
+                                                   FontSize="8"
+                                                   FontWeight="SemiBold"
+                                                   LetterSpacing="1.1"
+                                                   Foreground="{StaticResource CriptyTextMutedBrush}" />
+
+                                        <TextBox Text="{Binding Text, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                 Height="170"
+                                                 AcceptsReturn="True"
+                                                 TextWrapping="Wrap"
+                                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                                 PlaceholderText="Enter text" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Add text field dialog -->
+        <Border Grid.RowSpan="2"
+                ZIndex="20"
+                IsVisible="{Binding IsAddFieldDialogOpen}"
+                Background="#E607110D">
+
+            <Border Width="480"
+                    Margin="24"
+                    Padding="24"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Background="{StaticResource CriptySurfaceBrush}"
+                    BorderBrush="{StaticResource CriptyBorderBrightBrush}"
+                    BorderThickness="1"
+                    CornerRadius="5">
+
+                <StackPanel Spacing="17">
+                    <StackPanel Spacing="5">
+                        <TextBlock Text="ADD TEXT FIELD"
+                                   FontSize="19"
+                                   FontWeight="SemiBold"
+                                   LetterSpacing="1" />
+
+                        <TextBlock Text="Choose a common field-name preset or enter a custom name. Presets provide a stable place for field-specific actions to be added later."
+                                   FontSize="10"
+                                   LineHeight="16"
+                                   Foreground="{StaticResource CriptyTextMutedBrush}"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+
+                    <StackPanel Spacing="7">
+                        <TextBlock Text="FIELD NAME SOURCE"
+                                   FontSize="8"
+                                   FontWeight="SemiBold"
+                                   LetterSpacing="1.2"
+                                   Foreground="{StaticResource CriptyTextMutedBrush}" />
+
+                        <ComboBox ItemsSource="{Binding FieldPresets}"
+                                  SelectedItem="{Binding SelectedFieldPreset, Mode=TwoWay}"
+                                  HorizontalContentAlignment="Stretch">
+
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:EntryFieldPresetViewModel">
+                                    <TextBlock Text="{Binding DisplayName}"
+                                               FontSize="10"
+                                               FontWeight="SemiBold"
+                                               LetterSpacing="0.8" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </StackPanel>
+
+                    <StackPanel IsVisible="{Binding IsCustomFieldNameVisible}"
+                                Spacing="7">
+                        <TextBlock Text="CUSTOM FIELD NAME"
+                                   FontSize="8"
+                                   FontWeight="SemiBold"
+                                   LetterSpacing="1.2"
+                                   Foreground="{StaticResource CriptyTextMutedBrush}" />
+
+                        <TextBox Text="{Binding CustomFieldName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                 MaxLength="200"
+                                 PlaceholderText="Enter a field name" />
+                    </StackPanel>
+
+                    <Border IsVisible="{Binding HasAddFieldError}"
+                            Padding="10"
+                            Background="#291B13"
+                            BorderBrush="{StaticResource CriptyDangerBrush}"
+                            BorderThickness="1"
+                            CornerRadius="3">
+
+                        <TextBlock Text="{Binding AddFieldErrorMessage}"
+                                   Foreground="{StaticResource CriptyDangerBrush}"
+                                   TextWrapping="Wrap" />
+                    </Border>
+
+                    <Grid ColumnDefinitions="*,Auto,Auto">
+                        <Button Grid.Column="1"
+                                Classes="ghost"
+                                Command="{Binding CancelAddFieldDialogCommand}"
+                                Margin="0,0,8,0">
+
+                            <TextBlock Text="CANCEL"
+                                       FontSize="9"
+                                       FontWeight="SemiBold"
+                                       LetterSpacing="1" />
+                        </Button>
+
+                        <Button Grid.Column="2"
+                                Classes="primary"
+                                Command="{Binding ConfirmAddFieldCommand}">
+
+                            <TextBlock Text="ADD FIELD"
+                                       FontSize="9"
+                                       FontWeight="SemiBold"
+                                       LetterSpacing="1" />
+                        </Button>
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </Border>
+    </Grid>
+</UserControl>

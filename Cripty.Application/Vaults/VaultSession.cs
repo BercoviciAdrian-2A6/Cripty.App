@@ -733,6 +733,9 @@ public sealed class VaultSession : IAsyncDisposable
                 entryId,
                 newName);
 
+            _entriesWithPendingMetadataChanges.Add(
+                entryId);
+
             RecordManifestChange(
                 rebuildIndex: false);
         });
@@ -772,6 +775,9 @@ public sealed class VaultSession : IAsyncDisposable
                 entryId,
                 tagId);
 
+            _entriesWithPendingMetadataChanges.Add(
+                entryId);
+
             RecordManifestChange(
                 rebuildIndex: true);
         });
@@ -789,6 +795,9 @@ public sealed class VaultSession : IAsyncDisposable
             Manifest.RemoveTagFromEntry(
                 entryId,
                 tagId);
+
+            _entriesWithPendingMetadataChanges.Add(
+                entryId);
 
             RecordManifestChange(
                 rebuildIndex: true);

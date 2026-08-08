@@ -673,6 +673,125 @@ public sealed class VaultSessionTests
     }
 
     [TestMethod]
+    public async Task EntryFieldsAndTagChanges_RoundTripInDisplayedOrder()
+    {
+        Guid entryId;
+        Guid tagId;
+        Guid usernameFieldId = Guid.NewGuid();
+        Guid notesFieldId = Guid.NewGuid();
+
+        await using (VaultSession session =
+                     await CreateSessionAsync())
+        {
+            TagDescriptor tag =
+                session.CreateTag("Login");
+
+            VaultEntry entry =
+                session.CreateEntry(
+                    "Account",
+                    fields:
+                    [
+                        new EntryField(
+                            notesFieldId,
+                            "Notes",
+                            new TextFieldValue(
+                                "first")),
+
+                        new EntryField(
+                            usernameFieldId,
+                            "Username",
+                            new TextFieldValue(
+                                "adrian"))
+                    ]);
+
+            await session.SaveAsync();
+
+            VaultEntry persisted =
+                await session.GetEntryAsync(
+                    entry.EntryId);
+
+            session.ReplaceEntry(
+                new VaultEntry(
+                    persisted.SchemaVersion,
+                    persisted.EntryId,
+                    persisted.Revision,
+                    [
+                        new EntryField(
+                            usernameFieldId,
+                            "Username",
+                            new TextFieldValue(
+                                "updated user")),
+
+                        new EntryField(
+                            notesFieldId,
+                            "Recovery notes",
+                            new TextFieldValue(
+                                "an arbitrary amount of text"))
+                    ]));
+
+            session.AddTagToEntry(
+                entry.EntryId,
+                tag.TagId);
+
+            Assert.AreEqual(
+                EntryChangeKind.Modified,
+                session.GetEntrySessionState(
+                        entry.EntryId)
+                    .ChangeKind);
+
+            await session.SaveAsync();
+
+            entryId = entry.EntryId;
+            tagId = tag.TagId;
+        }
+
+        await using VaultSession reopened =
+            await VaultSession.OpenAsync(
+                _vaultDirectory,
+                Password);
+
+        EntryDescriptor descriptor =
+            reopened.Entries.Single(
+                entry => entry.EntryId == entryId);
+
+        CollectionAssert.AreEqual(
+            new[] { tagId },
+            descriptor.TagIds.ToArray());
+
+        VaultEntry restored =
+            await reopened.GetEntryAsync(
+                entryId);
+
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                usernameFieldId,
+                notesFieldId
+            },
+            restored.Fields
+                .Select(field => field.FieldId)
+                .ToArray());
+
+        Assert.AreEqual(
+            "Username",
+            restored.Fields[0].Name);
+
+        Assert.AreEqual(
+            "updated user",
+            ((TextFieldValue)
+                restored.Fields[0].Value).Text);
+
+        Assert.AreEqual(
+            "Recovery notes",
+            restored.Fields[1].Name);
+
+        Assert.AreEqual(
+            "an arbitrary amount of text",
+            ((TextFieldValue)
+                restored.Fields[1].Value).Text);
+    }
+
+    [TestMethod]
     public async Task SaveAsync_NoChanges_DoesNotAdvanceGeneration()
     {
         await using VaultSession session =

@@ -10,11 +10,11 @@
         <SolidColorBrush x:Key="EntryEditorModifiedSurfaceBrush"
                          Color="#0B2030" />
         <SolidColorBrush x:Key="EntryEditorModifiedControlBrush"
-                         Color="#0A1A27" />
-        <SolidColorBrush x:Key="EntryEditorModifiedControlHoverBrush"
-                         Color="#102A3C" />
-        <SolidColorBrush x:Key="EntryEditorModifiedControlFocusedBrush"
                          Color="#12344A" />
+        <SolidColorBrush x:Key="EntryEditorModifiedControlHoverBrush"
+                         Color="#17425A" />
+        <SolidColorBrush x:Key="EntryEditorModifiedControlFocusedBrush"
+                         Color="#1A4D68" />
         <SolidColorBrush x:Key="EntryEditorModifiedBorderBrush"
                          Color="#2E7098" />
 
@@ -583,8 +583,10 @@
                                                    Foreground="{StaticResource CriptyTextMutedBrush}" />
 
                                         <TextBox Text="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                 IsReadOnly="{Binding IsPredefinedName}"
                                                  MaxLength="200"
-                                                 PlaceholderText="Field name" />
+                                                 PlaceholderText="Field name"
+                                                 ToolTip.Tip="Predefined field names are fixed. Custom field names remain editable." />
                                     </StackPanel>
 
                                     <StackPanel Spacing="6">
@@ -595,13 +597,12 @@
                                                    Foreground="{StaticResource CriptyTextMutedBrush}" />
 
                                         <TextBox Text="{Binding Text, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                 MinHeight="96"
-                                                 MaxHeight="320"
+                                                 MinHeight="42"
                                                  VerticalAlignment="Top"
                                                  AcceptsReturn="True"
                                                  TextWrapping="Wrap"
                                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                                 ScrollViewer.VerticalScrollBarVisibility="Disabled"
                                                  PlaceholderText="Enter text" />
                                     </StackPanel>
                                 </StackPanel>

@@ -1120,6 +1120,10 @@ public partial class EntryTextFieldViewModel :
         }
     }
 
+    public bool IsPredefinedName =>
+        EntryFieldPresetViewModel.FindByFieldName(
+            Name) is not null;
+
     [RelayCommand(CanExecute = nameof(CanMoveUp))]
     private void MoveUp()
     {
@@ -1163,6 +1167,9 @@ public partial class EntryTextFieldViewModel :
     {
         OnPropertyChanged(
             nameof(PresetText));
+
+        OnPropertyChanged(
+            nameof(IsPredefinedName));
 
         if (!_isInitializing)
         {

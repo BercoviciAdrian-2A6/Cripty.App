@@ -62,9 +62,11 @@
             <Setter Property="VerticalContentAlignment"
                     Value="Center" />
             <Setter Property="Background"
-                    Value="#0A1C12" />
+                    Value="#142C34" />
+            <Setter Property="Foreground"
+                    Value="#9FC8D0" />
             <Setter Property="BorderBrush"
-                    Value="{StaticResource CriptyBorderBrush}" />
+                    Value="#315661" />
         </Style>
 
         <Style Selector="Button.field-toggle /template/ ContentPresenter#PART_ContentPresenter">
@@ -78,9 +80,60 @@
 
         <Style Selector="Button.field-toggle:pointerover">
             <Setter Property="Background"
-                    Value="{StaticResource CriptyAccentDarkBrush}" />
+                    Value="#1A3942" />
             <Setter Property="BorderBrush"
-                    Value="{StaticResource CriptyAccentBrush}" />
+                    Value="#47717C" />
+        </Style>
+
+        <Style Selector="Button.field-toggle.expanded">
+            <Setter Property="Background"
+                    Value="#29311D" />
+            <Setter Property="Foreground"
+                    Value="#C2CF91" />
+            <Setter Property="BorderBrush"
+                    Value="#5B6738" />
+        </Style>
+
+        <Style Selector="Button.field-toggle.expanded:pointerover">
+            <Setter Property="Background"
+                    Value="#353E25" />
+            <Setter Property="BorderBrush"
+                    Value="#75824A" />
+        </Style>
+
+        <Style Selector="Button.field-copy">
+            <Setter Property="Height"
+                    Value="28" />
+            <Setter Property="MinWidth"
+                    Value="58" />
+            <Setter Property="Padding"
+                    Value="9,0" />
+            <Setter Property="HorizontalContentAlignment"
+                    Value="Center" />
+            <Setter Property="VerticalContentAlignment"
+                    Value="Center" />
+            <Setter Property="Background"
+                    Value="#1A2638" />
+            <Setter Property="Foreground"
+                    Value="#B2C4DF" />
+            <Setter Property="BorderBrush"
+                    Value="#3A4D68" />
+        </Style>
+
+        <Style Selector="Button.field-copy /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Padding"
+                    Value="0" />
+            <Setter Property="HorizontalContentAlignment"
+                    Value="Center" />
+            <Setter Property="VerticalContentAlignment"
+                    Value="Center" />
+        </Style>
+
+        <Style Selector="Button.field-copy:pointerover">
+            <Setter Property="Background"
+                    Value="#243650" />
+            <Setter Property="BorderBrush"
+                    Value="#55749E" />
         </Style>
 
         <Style Selector="Button.tag-chip-remove">
@@ -199,41 +252,6 @@
         </Style>
 
         <Style Selector="Border.entry-field.modified Button.field-arrow:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background"
-                    Value="{StaticResource EntryEditorModifiedControlFocusedBrush}" />
-            <Setter Property="Foreground"
-                    Value="{StaticResource CriptyInfoBrush}" />
-        </Style>
-
-        <Style Selector="Border.entry-field.modified Button.field-toggle">
-            <Setter Property="Background"
-                    Value="{StaticResource EntryEditorModifiedControlBrush}" />
-            <Setter Property="Foreground"
-                    Value="{StaticResource CriptyInfoBrush}" />
-            <Setter Property="BorderBrush"
-                    Value="{StaticResource EntryEditorModifiedBorderBrush}" />
-        </Style>
-
-        <Style Selector="Border.entry-field.modified Button.field-toggle /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background"
-                    Value="{StaticResource EntryEditorModifiedControlBrush}" />
-            <Setter Property="Foreground"
-                    Value="{StaticResource CriptyInfoBrush}" />
-        </Style>
-
-        <Style Selector="Border.entry-field.modified Button.field-toggle TextBlock">
-            <Setter Property="Foreground"
-                    Value="{StaticResource CriptyInfoBrush}" />
-        </Style>
-
-        <Style Selector="Border.entry-field.modified Button.field-toggle:pointerover">
-            <Setter Property="Background"
-                    Value="{StaticResource EntryEditorModifiedControlFocusedBrush}" />
-            <Setter Property="BorderBrush"
-                    Value="{StaticResource CriptyInfoBrush}" />
-        </Style>
-
-        <Style Selector="Border.entry-field.modified Button.field-toggle:pointerover /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background"
                     Value="{StaticResource EntryEditorModifiedControlFocusedBrush}" />
             <Setter Property="Foreground"
@@ -435,6 +453,7 @@
 
                             <Button Grid.Column="1"
                                     Classes="field-toggle"
+                                    Classes.expanded="{Binding IsTagsExpanded}"
                                     Command="{Binding ToggleTagsCommand}"
                                     Margin="16,0,0,0"
                                     VerticalAlignment="Center"
@@ -547,32 +566,20 @@
                                    TextWrapping="Wrap" />
                     </StackPanel>
 
-                    <StackPanel Grid.Column="1"
-                                Orientation="Horizontal"
-                                Spacing="9"
-                                VerticalAlignment="Center">
-                        <Border Padding="10,6"
-                                Background="#0A1C12"
-                                BorderBrush="{StaticResource CriptyBorderBrush}"
-                                BorderThickness="1"
-                                CornerRadius="3">
+                    <Border Grid.Column="1"
+                            Padding="10,6"
+                            VerticalAlignment="Center"
+                            Background="#0A1C12"
+                            BorderBrush="{StaticResource CriptyBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="3">
 
-                            <TextBlock Text="{Binding FieldCountText}"
-                                       FontSize="9"
-                                       FontWeight="SemiBold"
-                                       LetterSpacing="0.9"
-                                       Foreground="{StaticResource CriptyTextMutedBrush}" />
-                        </Border>
-
-                        <Button Classes="primary"
-                                Command="{Binding OpenAddFieldDialogCommand}">
-
-                            <TextBlock Text="ADD FIELD"
-                                       FontSize="9"
-                                       FontWeight="SemiBold"
-                                       LetterSpacing="1" />
-                        </Button>
-                    </StackPanel>
+                        <TextBlock Text="{Binding FieldCountText}"
+                                   FontSize="9"
+                                   FontWeight="SemiBold"
+                                   LetterSpacing="0.9"
+                                   Foreground="{StaticResource CriptyTextMutedBrush}" />
+                    </Border>
                 </Grid>
 
                 <Border IsVisible="{Binding HasNoFields}"
@@ -613,7 +620,7 @@
                                     CornerRadius="4">
 
                                 <StackPanel Spacing="11">
-                                    <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto">
+                                    <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto">
                                         <StackPanel Spacing="4">
                                             <TextBlock Text="{Binding PositionText}"
                                                        FontSize="8"
@@ -637,6 +644,7 @@
 
                                         <Button Grid.Column="1"
                                                 Classes="field-toggle"
+                                                Classes.expanded="{Binding IsContentExpanded}"
                                                 Command="{Binding ToggleContentCommand}"
                                                 Margin="0,0,8,0"
                                                 ToolTip.Tip="{Binding ContentToggleToolTip}">
@@ -651,6 +659,18 @@
                                         </Button>
 
                                         <Button Grid.Column="2"
+                                                Classes="field-copy"
+                                                Click="CopyFieldContent"
+                                                Margin="0,0,8,0"
+                                                ToolTip.Tip="Copy this field's content to the clipboard">
+
+                                            <TextBlock Text="COPY"
+                                                       FontSize="8"
+                                                       FontWeight="SemiBold"
+                                                       LetterSpacing="0.7" />
+                                        </Button>
+
+                                        <Button Grid.Column="3"
                                                 Classes="field-arrow"
                                                 Command="{Binding MoveUpCommand}"
                                                 Margin="0,0,6,0"
@@ -661,7 +681,7 @@
                                                        FontWeight="SemiBold" />
                                         </Button>
 
-                                        <Button Grid.Column="3"
+                                        <Button Grid.Column="4"
                                                 Classes="field-arrow"
                                                 Command="{Binding MoveDownCommand}"
                                                 Margin="0,0,8,0"
@@ -672,7 +692,7 @@
                                                        FontWeight="SemiBold" />
                                         </Button>
 
-                                        <Button Grid.Column="4"
+                                        <Button Grid.Column="5"
                                                 Classes="danger"
                                                 Command="{Binding RemoveCommand}"
                                                 ToolTip.Tip="Remove field (staged until SAVE)">
@@ -721,6 +741,16 @@
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
+
+                <Button Classes="primary"
+                        HorizontalAlignment="Right"
+                        Command="{Binding OpenAddFieldDialogCommand}">
+
+                    <TextBlock Text="ADD FIELD"
+                               FontSize="9"
+                               FontWeight="SemiBold"
+                               LetterSpacing="1" />
+                </Button>
             </StackPanel>
         </ScrollViewer>
 

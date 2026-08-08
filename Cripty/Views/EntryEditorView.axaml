@@ -52,15 +52,28 @@
 
         <Style Selector="Button.field-toggle">
             <Setter Property="Height"
-                    Value="32" />
+                    Value="28" />
             <Setter Property="MinWidth"
-                    Value="128" />
+                    Value="112" />
             <Setter Property="Padding"
-                    Value="12,0" />
+                    Value="9,0" />
+            <Setter Property="HorizontalContentAlignment"
+                    Value="Center" />
+            <Setter Property="VerticalContentAlignment"
+                    Value="Center" />
             <Setter Property="Background"
                     Value="#0A1C12" />
             <Setter Property="BorderBrush"
                     Value="{StaticResource CriptyBorderBrush}" />
+        </Style>
+
+        <Style Selector="Button.field-toggle /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Padding"
+                    Value="0" />
+            <Setter Property="HorizontalContentAlignment"
+                    Value="Center" />
+            <Setter Property="VerticalContentAlignment"
+                    Value="Center" />
         </Style>
 
         <Style Selector="Button.field-toggle:pointerover">
@@ -406,27 +419,47 @@
                         CornerRadius="4">
 
                     <StackPanel Spacing="13">
-                        <StackPanel Spacing="4">
-                            <TextBlock Text="TAGS"
-                                       FontSize="13"
-                                       FontWeight="SemiBold"
-                                       LetterSpacing="1.1" />
+                        <Grid ColumnDefinitions="*,Auto">
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="TAGS"
+                                           FontSize="13"
+                                           FontWeight="SemiBold"
+                                           LetterSpacing="1.1" />
 
-                            <TextBlock Text="Assign existing vault tags to this entry. Tag changes remain staged until SAVE."
+                                <TextBlock Text="Assign existing vault tags to this entry. Tag changes remain staged until SAVE."
+                                           FontSize="9"
+                                           LineHeight="14"
+                                           Foreground="{StaticResource CriptyTextMutedBrush}"
+                                           TextWrapping="Wrap" />
+                            </StackPanel>
+
+                            <Button Grid.Column="1"
+                                    Classes="field-toggle"
+                                    Command="{Binding ToggleTagsCommand}"
+                                    Margin="16,0,0,0"
+                                    VerticalAlignment="Center"
+                                    ToolTip.Tip="{Binding TagsToggleToolTip}">
+
+                                <TextBlock Text="{Binding TagsToggleText}"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           TextAlignment="Center"
+                                           FontSize="8"
+                                           FontWeight="SemiBold"
+                                           LetterSpacing="0.7" />
+                            </Button>
+                        </Grid>
+
+                        <StackPanel IsVisible="{Binding IsTagsExpanded}"
+                                    Spacing="13">
+                            <TextBlock Text="NO TAGS ASSIGNED"
+                                       IsVisible="{Binding HasNoAssignedTags}"
                                        FontSize="9"
-                                       LineHeight="14"
-                                       Foreground="{StaticResource CriptyTextMutedBrush}"
-                                       TextWrapping="Wrap" />
-                        </StackPanel>
+                                       LetterSpacing="1"
+                                       Foreground="{StaticResource CriptyTextMutedBrush}" />
 
-                        <TextBlock Text="NO TAGS ASSIGNED"
-                                   IsVisible="{Binding HasNoAssignedTags}"
-                                   FontSize="9"
-                                   LetterSpacing="1"
-                                   Foreground="{StaticResource CriptyTextMutedBrush}" />
-
-                        <ItemsControl ItemsSource="{Binding AssignedTags}"
-                                      IsVisible="{Binding HasAssignedTags}">
+                            <ItemsControl ItemsSource="{Binding AssignedTags}"
+                                          IsVisible="{Binding HasAssignedTags}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
                                     <WrapPanel Orientation="Horizontal" />
@@ -468,13 +501,13 @@
                                     </Border>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
-                        </ItemsControl>
+                            </ItemsControl>
 
-                        <Grid ColumnDefinitions="*,Auto">
-                            <ComboBox ItemsSource="{Binding AvailableTags}"
-                                      SelectedItem="{Binding SelectedAvailableTag, Mode=TwoWay}"
-                                      IsEnabled="{Binding HasAvailableTags}"
-                                      HorizontalContentAlignment="Stretch">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <ComboBox ItemsSource="{Binding AvailableTags}"
+                                          SelectedItem="{Binding SelectedAvailableTag, Mode=TwoWay}"
+                                          IsEnabled="{Binding HasAvailableTags}"
+                                          HorizontalContentAlignment="Stretch">
 
                                 <ComboBox.ItemTemplate>
                                     <DataTemplate x:DataType="vm:EntryEditorTagOptionViewModel">
@@ -482,19 +515,20 @@
                                                    FontSize="10" />
                                     </DataTemplate>
                                 </ComboBox.ItemTemplate>
-                            </ComboBox>
+                                </ComboBox>
 
-                            <Button Grid.Column="1"
-                                    Classes="primary"
-                                    Command="{Binding AddTagCommand}"
-                                    Margin="8,0,0,0">
+                                <Button Grid.Column="1"
+                                        Classes="primary"
+                                        Command="{Binding AddTagCommand}"
+                                        Margin="8,0,0,0">
 
                                 <TextBlock Text="ADD TAG"
                                            FontSize="9"
                                            FontWeight="SemiBold"
                                            LetterSpacing="1" />
-                            </Button>
-                        </Grid>
+                                </Button>
+                            </Grid>
+                        </StackPanel>
                     </StackPanel>
                 </Border>
 
@@ -608,6 +642,9 @@
                                                 ToolTip.Tip="{Binding ContentToggleToolTip}">
 
                                             <TextBlock Text="{Binding ContentToggleText}"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"
+                                                       TextAlignment="Center"
                                                        FontSize="8"
                                                        FontWeight="SemiBold"
                                                        LetterSpacing="0.7" />

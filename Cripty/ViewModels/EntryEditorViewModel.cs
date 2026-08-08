@@ -148,6 +148,23 @@ public partial class EntryEditorViewModel :
         !HasAssignedTags;
 
     [ObservableProperty]
+    public partial bool IsTagsExpanded
+    {
+        get;
+        private set;
+    }
+
+    public string TagsToggleText =>
+        IsTagsExpanded
+            ? "COLLAPSE TAGS"
+            : "EXPAND TAGS";
+
+    public string TagsToggleToolTip =>
+        IsTagsExpanded
+            ? "Collapse the entry tags section"
+            : "Expand the entry tags section";
+
+    [ObservableProperty]
     public partial bool HasAvailableTags
     {
         get;
@@ -395,6 +412,13 @@ public partial class EntryEditorViewModel :
         {
             ErrorMessage = exception.Message;
         }
+    }
+
+    [RelayCommand]
+    private void ToggleTags()
+    {
+        IsTagsExpanded =
+            !IsTagsExpanded;
     }
 
     [RelayCommand]
@@ -912,6 +936,16 @@ public partial class EntryEditorViewModel :
         AddTagCommand.NotifyCanExecuteChanged();
     }
 
+    partial void OnIsTagsExpandedChanged(
+        bool value)
+    {
+        OnPropertyChanged(
+            nameof(TagsToggleText));
+
+        OnPropertyChanged(
+            nameof(TagsToggleToolTip));
+    }
+
     partial void OnSelectedFieldPresetChanged(
         EntryFieldPresetViewModel? value)
     {
@@ -1299,7 +1333,7 @@ public sealed class EntryFieldPresetViewModel
         string fieldName,
         bool isCustom = false,
         bool hidesNameEditor = false,
-        bool collapseContentByDefault = false)
+        bool collapseContentByDefault = true)
     {
         Key = key;
         DisplayName = displayName;
@@ -1328,7 +1362,8 @@ public sealed class EntryFieldPresetViewModel
             "custom",
             "CUSTOM NAME",
             string.Empty,
-            isCustom: true);
+            isCustom: true,
+            collapseContentByDefault: false);
 
     public static EntryFieldPresetViewModel None
     { get; } =
@@ -1336,7 +1371,8 @@ public sealed class EntryFieldPresetViewModel
             "none",
             "[NONE]",
             "[None]",
-            hidesNameEditor: true);
+            hidesNameEditor: true,
+            collapseContentByDefault: false);
 
     public static EntryFieldPresetViewModel Password
     { get; } =
@@ -1356,7 +1392,11 @@ public sealed class EntryFieldPresetViewModel
             Password,
             new("email", "EMAIL", "Email"),
             new("website", "WEBSITE", "Website"),
-            new("notes", "NOTES", "Notes")
+            new(
+                "notes",
+                "NOTES",
+                "Notes",
+                collapseContentByDefault: false)
         ];
 
     public static EntryFieldPresetViewModel?

@@ -84,6 +84,22 @@ public sealed class VaultSession : IAsyncDisposable
         ReadState(() =>
             _pendingEntryChanges.Count > 0);
 
+    public bool HasPendingEntryContentChanges(
+        Guid entryId)
+    {
+        return ReadState(() =>
+        {
+            ValidateEntryId(entryId);
+            GetEntryDescriptor(entryId);
+
+            return _pendingEntryChanges.TryGetValue(
+                       entryId,
+                       out PendingEntryChange? pendingChange) &&
+                   pendingChange.Kind ==
+                   EntryChangeKind.Modified;
+        });
+    }
+
     public bool HasPendingEntryDeletions =>
         ReadState(() =>
             _entriesPendingDeletion.Count > 0);
@@ -404,33 +420,48 @@ public sealed class VaultSession : IAsyncDisposable
                 return pendingChange.WorkingEntry;
             }
 
-            EntryFile entryFile =
-                await _entryFileStore.ReadAsync(
-                        VaultDirectoryPath,
-                        entryId,
-                        cancellationToken)
-                    .ConfigureAwait(false);
+            return await ReadPersistedEntryCoreAsync(
+                    entryId,
+                    descriptor,
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
+        finally
+        {
+            _operationGate.Release();
+        }
+    }
 
-            if (entryFile.VaultId != Manifest.VaultId)
+    public async Task<VaultEntry> GetPersistedEntryAsync(
+        Guid entryId,
+        CancellationToken cancellationToken = default)
+    {
+        await _operationGate.WaitAsync(
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        try
+        {
+            EnsureNotDisposed();
+            ValidateEntryId(entryId);
+
+            EntryDescriptor descriptor =
+                GetEntryDescriptor(entryId);
+
+            if (_pendingEntryChanges.TryGetValue(
+                    entryId,
+                    out PendingEntryChange? pendingChange) &&
+                pendingChange.Kind == EntryChangeKind.New)
             {
-                throw new InvalidDataException(
-                    $"Entry '{entryId}' belongs to a different vault.");
+                throw new InvalidOperationException(
+                    $"Entry '{entryId}' has not been saved yet.");
             }
 
-            VaultEntry entry =
-                _entryFileCodec.Open(
-                    entryFile,
-                    _vaultRootKey);
-
-            if (entry.Revision != descriptor.Revision)
-            {
-                throw new InvalidDataException(
-                    $"Entry '{entryId}' has revision " +
-                    $"'{entry.Revision}', but the manifest expects " +
-                    $"revision '{descriptor.Revision}'.");
-            }
-
-            return entry;
+            return await ReadPersistedEntryCoreAsync(
+                    entryId,
+                    descriptor,
+                    cancellationToken)
+                .ConfigureAwait(false);
         }
         finally
         {
@@ -1066,6 +1097,41 @@ public sealed class VaultSession : IAsyncDisposable
     {
         return HasUnsavedUserChangesCore() ||
                _orphanedEntryFilesPendingCleanup.Count > 0;
+    }
+
+    private async Task<VaultEntry>
+        ReadPersistedEntryCoreAsync(
+            Guid entryId,
+            EntryDescriptor descriptor,
+            CancellationToken cancellationToken)
+    {
+        EntryFile entryFile =
+            await _entryFileStore.ReadAsync(
+                    VaultDirectoryPath,
+                    entryId,
+                    cancellationToken)
+                .ConfigureAwait(false);
+
+        if (entryFile.VaultId != Manifest.VaultId)
+        {
+            throw new InvalidDataException(
+                $"Entry '{entryId}' belongs to a different vault.");
+        }
+
+        VaultEntry entry =
+            _entryFileCodec.Open(
+                entryFile,
+                _vaultRootKey);
+
+        if (entry.Revision != descriptor.Revision)
+        {
+            throw new InvalidDataException(
+                $"Entry '{entryId}' has revision " +
+                $"'{entry.Revision}', but the manifest expects " +
+                $"revision '{descriptor.Revision}'.");
+        }
+
+        return entry;
     }
 
     private T ReadState<T>(

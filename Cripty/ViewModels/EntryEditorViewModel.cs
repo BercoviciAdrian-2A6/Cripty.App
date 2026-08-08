@@ -22,12 +22,14 @@ public partial class EntryEditorViewModel :
 
     private int _schemaVersion;
     private long _revision;
+    private VaultEntry? _persistedEntry;
     private bool _isApplyingSnapshot;
 
     public EntryEditorViewModel(
         VaultSession session,
         EntryDescriptor descriptor,
         VaultEntry entry,
+        VaultEntry? persistedEntry,
         string locationText,
         Action<string> recordUnsavedChange,
         Action<bool> validationStateChanged,
@@ -68,7 +70,8 @@ public partial class EntryEditorViewModel :
 
         ApplySnapshot(
             descriptor,
-            entry);
+            entry,
+            persistedEntry);
     }
 
     public Guid EntryId { get; }
@@ -223,6 +226,20 @@ public partial class EntryEditorViewModel :
     public bool CanSaveEntry =>
         !HasValidationError;
 
+    [ObservableProperty]
+    public partial bool HasRevertibleContentChanges
+    {
+        get;
+        private set;
+    }
+
+    [ObservableProperty]
+    public partial bool IsRevertingChanges
+    {
+        get;
+        private set;
+    }
+
     public async Task ReloadFromSessionAsync()
     {
         EntryDescriptor descriptor =
@@ -232,13 +249,83 @@ public partial class EntryEditorViewModel :
             await _session.GetEntryAsync(
                 EntryId);
 
+        EntrySessionState state =
+            _session.GetEntrySessionState(
+                EntryId);
+
+        VaultEntry? persistedEntry =
+            state.ChangeKind == EntryChangeKind.New
+                ? null
+                : _session
+                    .HasPendingEntryContentChanges(
+                        EntryId)
+                    ? await _session
+                        .GetPersistedEntryAsync(
+                            EntryId)
+                    : entry;
+
         LocationText = BuildFolderPath(
             descriptor.FolderId,
             _session.Folders);
 
         ApplySnapshot(
             descriptor,
-            entry);
+            entry,
+            persistedEntry);
+    }
+
+    private bool CanRevertChanges()
+    {
+        return HasRevertibleContentChanges &&
+               !IsRevertingChanges &&
+               !IsAddFieldDialogOpen;
+    }
+
+    [RelayCommand(CanExecute = nameof(CanRevertChanges))]
+    private async Task RevertChangesAsync()
+    {
+        if (_persistedEntry is null)
+        {
+            return;
+        }
+
+        IsRevertingChanges = true;
+        ClearError();
+
+        try
+        {
+            if (_session.HasPendingEntryContentChanges(
+                    EntryId))
+            {
+                _session.DiscardEntryChanges(
+                    EntryId);
+            }
+
+            EntryDescriptor descriptor =
+                GetDescriptor();
+
+            VaultEntry persistedEntry =
+                await _session.GetPersistedEntryAsync(
+                    EntryId);
+
+            ApplySnapshot(
+                descriptor,
+                persistedEntry,
+                persistedEntry);
+
+            _recordUnsavedChange(
+                $"CONTENT CHANGES REVERTED FOR ENTRY '{EntryName}'");
+        }
+        catch (Exception exception)
+            when (IsExpectedOperationFailure(
+                exception))
+        {
+            ErrorMessage = exception.Message;
+        }
+        finally
+        {
+            IsRevertingChanges = false;
+        }
     }
 
     [RelayCommand]
@@ -442,6 +529,8 @@ public partial class EntryEditorViewModel :
     {
         if (!_isApplyingSnapshot)
         {
+            RefreshFieldModificationStates();
+
             TryPersistFields(
                 $"ENTRY '{EntryName}' CONTENT MODIFIED");
         }
@@ -479,6 +568,7 @@ public partial class EntryEditorViewModel :
 
             RefreshEntryState();
             RefreshFieldSummary();
+            RefreshFieldModificationStates();
             _recordUnsavedChange(statusMessage);
             ClearError();
 
@@ -504,7 +594,8 @@ public partial class EntryEditorViewModel :
 
     private void ApplySnapshot(
         EntryDescriptor descriptor,
-        VaultEntry entry)
+        VaultEntry entry,
+        VaultEntry? persistedEntry)
     {
         if (descriptor.EntryId != EntryId ||
             entry.EntryId != EntryId)
@@ -520,12 +611,22 @@ public partial class EntryEditorViewModel :
                 "This entry contains a field type which the text-only editor does not support yet.");
         }
 
+        if (persistedEntry is not null &&
+            (persistedEntry.EntryId != EntryId ||
+             persistedEntry.Fields.Any(field =>
+                 field.Value is not TextFieldValue)))
+        {
+            throw new NotSupportedException(
+                "The saved entry counterpart is incompatible with this text-only editor.");
+        }
+
         _isApplyingSnapshot = true;
 
         try
         {
             _schemaVersion = entry.SchemaVersion;
             _revision = entry.Revision;
+            _persistedEntry = persistedEntry;
 
             EntryName = descriptor.Name;
             RevisionText =
@@ -547,6 +648,7 @@ public partial class EntryEditorViewModel :
             }
 
             UpdateFieldPositions();
+            RefreshFieldModificationStates();
             RebuildTags();
             RefreshEntryState();
             SetValidationState(null);
@@ -648,6 +750,78 @@ public partial class EntryEditorViewModel :
         }
 
         RefreshFieldSummary();
+        RefreshFieldModificationStates();
+    }
+
+    private void RefreshFieldModificationStates()
+    {
+        if (_persistedEntry is null)
+        {
+            foreach (EntryTextFieldViewModel field
+                     in Fields)
+            {
+                field.UpdateModificationState(
+                    isModified: false);
+            }
+
+            HasRevertibleContentChanges = false;
+            return;
+        }
+
+        Dictionary<Guid, (EntryField Field, int Index)>
+            persistedFields =
+                _persistedEntry.Fields
+                    .Select((field, index) =>
+                        (field, index))
+                    .ToDictionary(
+                        item => item.field.FieldId,
+                        item =>
+                            (item.field, item.index));
+
+        bool contentDiffers =
+            Fields.Count !=
+            _persistedEntry.Fields.Count;
+
+        for (int index = 0;
+             index < Fields.Count;
+             index++)
+        {
+            EntryTextFieldViewModel field =
+                Fields[index];
+
+            bool isModified = true;
+
+            if (persistedFields.TryGetValue(
+                    field.FieldId,
+                    out (EntryField Field, int Index)
+                        persisted))
+            {
+                TextFieldValue persistedValue =
+                    (TextFieldValue)
+                    persisted.Field.Value;
+
+                isModified =
+                    persisted.Index != index ||
+                    !string.Equals(
+                        persisted.Field.Name,
+                        field.Name,
+                        StringComparison.Ordinal) ||
+                    !string.Equals(
+                        persistedValue.Text,
+                        field.Text,
+                        StringComparison.Ordinal);
+            }
+
+            field.UpdateModificationState(
+                isModified);
+
+            contentDiffers |= isModified;
+        }
+
+        HasRevertibleContentChanges =
+            contentDiffers ||
+            _session.HasPendingEntryContentChanges(
+                EntryId);
     }
 
     private void RefreshFieldSummary()
@@ -765,6 +939,24 @@ public partial class EntryEditorViewModel :
     {
         OnPropertyChanged(
             nameof(HasError));
+    }
+
+    partial void OnHasRevertibleContentChangesChanged(
+        bool value)
+    {
+        RevertChangesCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnIsRevertingChangesChanged(
+        bool value)
+    {
+        RevertChangesCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnIsAddFieldDialogOpenChanged(
+        bool value)
+    {
+        RevertChangesCommand.NotifyCanExecuteChanged();
     }
 
     private static string BuildFolderPath(
@@ -907,6 +1099,13 @@ public partial class EntryTextFieldViewModel :
         private set;
     }
 
+    [ObservableProperty]
+    public partial bool IsModified
+    {
+        get;
+        private set;
+    }
+
     public string PresetText
     {
         get
@@ -951,6 +1150,12 @@ public partial class EntryTextFieldViewModel :
 
         MoveUpCommand.NotifyCanExecuteChanged();
         MoveDownCommand.NotifyCanExecuteChanged();
+    }
+
+    internal void UpdateModificationState(
+        bool isModified)
+    {
+        IsModified = isModified;
     }
 
     partial void OnNameChanged(

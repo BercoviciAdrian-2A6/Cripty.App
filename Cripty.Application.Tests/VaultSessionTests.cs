@@ -213,6 +213,15 @@ public sealed class VaultSessionTests
             state.ChangeKind);
 
         Assert.IsFalse(state.IsPendingDeletion);
+        Assert.IsFalse(
+            session.HasPendingEntryContentChanges(
+                original.EntryId));
+
+        await Assert.ThrowsExactlyAsync<
+            InvalidOperationException>(
+            () => session.GetPersistedEntryAsync(
+                original.EntryId));
+
         Assert.IsTrue(session.HasPendingEntryChanges);
         Assert.IsTrue(session.HasUnsavedChanges);
 
@@ -321,6 +330,63 @@ public sealed class VaultSessionTests
 
         Assert.IsFalse(session.HasPendingEntryChanges);
         Assert.IsFalse(session.HasUnsavedChanges);
+    }
+
+    [TestMethod]
+    public async Task GetPersistedEntryAsync_PendingModification_ReturnsSavedCounterpart()
+    {
+        await using VaultSession session =
+            await CreateSessionAsync();
+
+        VaultEntry entry =
+            session.CreateEntry(
+                "Entry",
+                fields:
+                [
+                    CreateTextField("persisted")
+                ]);
+
+        await session.SaveAsync();
+
+        VaultEntry persisted =
+            await session.GetEntryAsync(
+                entry.EntryId);
+
+        session.ReplaceEntry(
+            WithText(
+                persisted,
+                "working copy"));
+
+        Assert.IsTrue(
+            session.HasPendingEntryContentChanges(
+                entry.EntryId));
+
+        VaultEntry workingCopy =
+            await session.GetEntryAsync(
+                entry.EntryId);
+
+        VaultEntry savedCounterpart =
+            await session.GetPersistedEntryAsync(
+                entry.EntryId);
+
+        AssertEntryText(
+            workingCopy,
+            "working copy");
+
+        AssertEntryText(
+            savedCounterpart,
+            "persisted");
+
+        Assert.AreEqual(
+            persisted.Revision,
+            savedCounterpart.Revision);
+
+        session.DiscardEntryChanges(
+            entry.EntryId);
+
+        Assert.IsFalse(
+            session.HasPendingEntryContentChanges(
+                entry.EntryId));
     }
 
     [TestMethod]

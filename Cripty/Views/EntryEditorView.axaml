@@ -60,6 +60,13 @@
             <Setter Property="BorderBrush"
                     Value="{StaticResource CriptyDangerBrush}" />
         </Style>
+
+        <Style Selector="Border.entry-field.modified">
+            <Setter Property="Background"
+                    Value="#0B2030" />
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource CriptyInfoBrush}" />
+        </Style>
     </UserControl.Styles>
 
     <Grid RowDefinitions="Auto,*"
@@ -107,17 +114,32 @@
                     </StackPanel>
                 </StackPanel>
 
-                <Button Grid.Column="1"
-                        Classes="ghost"
-                        Command="{Binding CloseCommand}"
-                        Margin="18,0,0,0"
-                        VerticalAlignment="Center">
+                <StackPanel Grid.Column="1"
+                            Orientation="Horizontal"
+                            Spacing="9"
+                            Margin="18,0,0,0"
+                            VerticalAlignment="Center">
 
-                    <TextBlock Text="BACK TO ENTRIES"
-                               FontSize="9"
-                               FontWeight="SemiBold"
-                               LetterSpacing="1" />
-                </Button>
+                    <Button Classes="ghost"
+                            IsVisible="{Binding HasRevertibleContentChanges}"
+                            Command="{Binding RevertChangesCommand}"
+                            ToolTip.Tip="Restore this entry's fields to their last saved names, contents, and order. Tags are unaffected.">
+
+                        <TextBlock Text="REVERT CHANGES"
+                                   FontSize="9"
+                                   FontWeight="SemiBold"
+                                   LetterSpacing="1" />
+                    </Button>
+
+                    <Button Classes="ghost"
+                            Command="{Binding CloseCommand}">
+
+                        <TextBlock Text="BACK TO ENTRIES"
+                                   FontSize="9"
+                                   FontWeight="SemiBold"
+                                   LetterSpacing="1" />
+                    </Button>
+                </StackPanel>
             </Grid>
         </Border>
 
@@ -327,7 +349,9 @@
 
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:EntryTextFieldViewModel">
-                            <Border Margin="0,0,0,12"
+                            <Border Classes="entry-field"
+                                    Classes.modified="{Binding IsModified}"
+                                    Margin="0,0,0,12"
                                     Padding="16"
                                     Background="{StaticResource CriptySurfaceBrush}"
                                     BorderBrush="{StaticResource CriptyBorderBrush}"
@@ -347,6 +371,13 @@
                                                        FontSize="8"
                                                        LetterSpacing="0.8"
                                                        Foreground="{StaticResource CriptyAccentBrush}" />
+
+                                            <TextBlock Text="[MODIFIED]"
+                                                       IsVisible="{Binding IsModified}"
+                                                       FontSize="8"
+                                                       FontWeight="SemiBold"
+                                                       LetterSpacing="0.9"
+                                                       Foreground="{StaticResource CriptyInfoBrush}" />
                                         </StackPanel>
 
                                         <Button Grid.Column="1"

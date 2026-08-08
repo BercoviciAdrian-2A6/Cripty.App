@@ -935,6 +935,22 @@ public partial class MainVaultViewModel :
                 await _session.GetEntryAsync(
                     selectedEntry.EntryId);
 
+            EntrySessionState entryState =
+                _session.GetEntrySessionState(
+                    selectedEntry.EntryId);
+
+            VaultEntry? persistedEntry =
+                entryState.ChangeKind ==
+                EntryChangeKind.New
+                    ? null
+                    : _session
+                        .HasPendingEntryContentChanges(
+                            selectedEntry.EntryId)
+                        ? await _session
+                            .GetPersistedEntryAsync(
+                                selectedEntry.EntryId)
+                        : entry;
+
             string locationText =
                 BuildFolderPath(
                     descriptor.FolderId,
@@ -946,6 +962,7 @@ public partial class MainVaultViewModel :
                     _session,
                     descriptor,
                     entry,
+                    persistedEntry,
                     locationText,
                     RecordUnsavedChange,
                     SetEntryEditorValidationState,
@@ -2915,8 +2932,9 @@ public partial class MainVaultViewModel :
     {
         RefreshSessionFlags();
 
-        SaveStatusText =
-            $"UNSAVED · {statusMessage}";
+        SaveStatusText = HasUnsavedChanges
+            ? $"UNSAVED · {statusMessage}"
+            : $"SAVED · {statusMessage}";
 
         ClearError();
     }

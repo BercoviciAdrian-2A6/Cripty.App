@@ -1059,6 +1059,14 @@ public partial class EntryTextFieldViewModel :
 
         Name = name;
         Text = text;
+
+        EntryFieldPresetViewModel? preset =
+            EntryFieldPresetViewModel.FindByFieldName(
+                name);
+
+        IsContentExpanded =
+            preset?.CollapseContentByDefault != true;
+
         _isInitializing = false;
     }
 
@@ -1106,6 +1114,23 @@ public partial class EntryTextFieldViewModel :
         private set;
     }
 
+    [ObservableProperty]
+    public partial bool IsContentExpanded
+    {
+        get;
+        private set;
+    }
+
+    public string ContentToggleText =>
+        IsContentExpanded
+            ? "COLLAPSE CONTENT"
+            : "EXPAND CONTENT";
+
+    public string ContentToggleToolTip =>
+        IsContentExpanded
+            ? "Collapse this field's content"
+            : "Expand this field's content";
+
     public string PresetText
     {
         get
@@ -1123,6 +1148,17 @@ public partial class EntryTextFieldViewModel :
     public bool IsPredefinedName =>
         EntryFieldPresetViewModel.FindByFieldName(
             Name) is not null;
+
+    public bool IsFieldNameEditorVisible =>
+        EntryFieldPresetViewModel.FindByFieldName(
+            Name)?.HidesNameEditor != true;
+
+    [RelayCommand]
+    private void ToggleContent()
+    {
+        IsContentExpanded =
+            !IsContentExpanded;
+    }
 
     [RelayCommand(CanExecute = nameof(CanMoveUp))]
     private void MoveUp()
@@ -1165,16 +1201,39 @@ public partial class EntryTextFieldViewModel :
     partial void OnNameChanged(
         string value)
     {
+        EntryFieldPresetViewModel? preset =
+            EntryFieldPresetViewModel.FindByFieldName(
+                value);
+
         OnPropertyChanged(
             nameof(PresetText));
 
         OnPropertyChanged(
             nameof(IsPredefinedName));
 
+        OnPropertyChanged(
+            nameof(IsFieldNameEditorVisible));
+
+        if (!_isInitializing &&
+            preset?.CollapseContentByDefault == true)
+        {
+            IsContentExpanded = false;
+        }
+
         if (!_isInitializing)
         {
             _changed();
         }
+    }
+
+    partial void OnIsContentExpandedChanged(
+        bool value)
+    {
+        OnPropertyChanged(
+            nameof(ContentToggleText));
+
+        OnPropertyChanged(
+            nameof(ContentToggleToolTip));
     }
 
     partial void OnTextChanged(
@@ -1238,12 +1297,17 @@ public sealed class EntryFieldPresetViewModel
         string key,
         string displayName,
         string fieldName,
-        bool isCustom = false)
+        bool isCustom = false,
+        bool hidesNameEditor = false,
+        bool collapseContentByDefault = false)
     {
         Key = key;
         DisplayName = displayName;
         FieldName = fieldName;
         IsCustom = isCustom;
+        HidesNameEditor = hidesNameEditor;
+        CollapseContentByDefault =
+            collapseContentByDefault;
     }
 
     public string Key { get; }
@@ -1254,6 +1318,10 @@ public sealed class EntryFieldPresetViewModel
 
     public bool IsCustom { get; }
 
+    public bool HidesNameEditor { get; }
+
+    public bool CollapseContentByDefault { get; }
+
     public static EntryFieldPresetViewModel Custom
     { get; } =
         new(
@@ -1262,13 +1330,30 @@ public sealed class EntryFieldPresetViewModel
             string.Empty,
             isCustom: true);
 
+    public static EntryFieldPresetViewModel None
+    { get; } =
+        new(
+            "none",
+            "[NONE]",
+            "[None]",
+            hidesNameEditor: true);
+
+    public static EntryFieldPresetViewModel Password
+    { get; } =
+        new(
+            "password",
+            "PASSWORD",
+            "Password",
+            collapseContentByDefault: true);
+
     public static IReadOnlyList<
         EntryFieldPresetViewModel> All
     { get; } =
         [
             Custom,
+            None,
             new("username", "USERNAME", "Username"),
-            new("password", "PASSWORD", "Password"),
+            Password,
             new("email", "EMAIL", "Email"),
             new("website", "WEBSITE", "Website"),
             new("notes", "NOTES", "Notes")

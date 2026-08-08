@@ -50,6 +50,26 @@
                     Value="{StaticResource CriptyAccentBrush}" />
         </Style>
 
+        <Style Selector="Button.field-toggle">
+            <Setter Property="Height"
+                    Value="32" />
+            <Setter Property="MinWidth"
+                    Value="128" />
+            <Setter Property="Padding"
+                    Value="12,0" />
+            <Setter Property="Background"
+                    Value="#0A1C12" />
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource CriptyBorderBrush}" />
+        </Style>
+
+        <Style Selector="Button.field-toggle:pointerover">
+            <Setter Property="Background"
+                    Value="{StaticResource CriptyAccentDarkBrush}" />
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource CriptyAccentBrush}" />
+        </Style>
+
         <Style Selector="Button.tag-chip-remove">
             <Setter Property="Width"
                     Value="24" />
@@ -70,6 +90,13 @@
                     Value="#48271A" />
             <Setter Property="BorderBrush"
                     Value="{StaticResource CriptyDangerBrush}" />
+        </Style>
+
+        <Style Selector="Border.entry-field">
+            <Setter Property="Background"
+                    Value="{StaticResource CriptySurfaceBrush}" />
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource CriptyBorderBrush}" />
         </Style>
 
         <Style Selector="Border.entry-field.modified">
@@ -159,6 +186,41 @@
         </Style>
 
         <Style Selector="Border.entry-field.modified Button.field-arrow:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background"
+                    Value="{StaticResource EntryEditorModifiedControlFocusedBrush}" />
+            <Setter Property="Foreground"
+                    Value="{StaticResource CriptyInfoBrush}" />
+        </Style>
+
+        <Style Selector="Border.entry-field.modified Button.field-toggle">
+            <Setter Property="Background"
+                    Value="{StaticResource EntryEditorModifiedControlBrush}" />
+            <Setter Property="Foreground"
+                    Value="{StaticResource CriptyInfoBrush}" />
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource EntryEditorModifiedBorderBrush}" />
+        </Style>
+
+        <Style Selector="Border.entry-field.modified Button.field-toggle /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background"
+                    Value="{StaticResource EntryEditorModifiedControlBrush}" />
+            <Setter Property="Foreground"
+                    Value="{StaticResource CriptyInfoBrush}" />
+        </Style>
+
+        <Style Selector="Border.entry-field.modified Button.field-toggle TextBlock">
+            <Setter Property="Foreground"
+                    Value="{StaticResource CriptyInfoBrush}" />
+        </Style>
+
+        <Style Selector="Border.entry-field.modified Button.field-toggle:pointerover">
+            <Setter Property="Background"
+                    Value="{StaticResource EntryEditorModifiedControlFocusedBrush}" />
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource CriptyInfoBrush}" />
+        </Style>
+
+        <Style Selector="Border.entry-field.modified Button.field-toggle:pointerover /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background"
                     Value="{StaticResource EntryEditorModifiedControlFocusedBrush}" />
             <Setter Property="Foreground"
@@ -513,13 +575,11 @@
                                     Classes.modified="{Binding IsModified}"
                                     Margin="0,0,0,12"
                                     Padding="16"
-                                    Background="{StaticResource CriptySurfaceBrush}"
-                                    BorderBrush="{StaticResource CriptyBorderBrush}"
                                     BorderThickness="1"
                                     CornerRadius="4">
 
                                 <StackPanel Spacing="11">
-                                    <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+                                    <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto">
                                         <StackPanel Spacing="4">
                                             <TextBlock Text="{Binding PositionText}"
                                                        FontSize="8"
@@ -542,6 +602,18 @@
                                         </StackPanel>
 
                                         <Button Grid.Column="1"
+                                                Classes="field-toggle"
+                                                Command="{Binding ToggleContentCommand}"
+                                                Margin="0,0,8,0"
+                                                ToolTip.Tip="{Binding ContentToggleToolTip}">
+
+                                            <TextBlock Text="{Binding ContentToggleText}"
+                                                       FontSize="8"
+                                                       FontWeight="SemiBold"
+                                                       LetterSpacing="0.7" />
+                                        </Button>
+
+                                        <Button Grid.Column="2"
                                                 Classes="field-arrow"
                                                 Command="{Binding MoveUpCommand}"
                                                 Margin="0,0,6,0"
@@ -552,7 +624,7 @@
                                                        FontWeight="SemiBold" />
                                         </Button>
 
-                                        <Button Grid.Column="2"
+                                        <Button Grid.Column="3"
                                                 Classes="field-arrow"
                                                 Command="{Binding MoveDownCommand}"
                                                 Margin="0,0,8,0"
@@ -563,7 +635,7 @@
                                                        FontWeight="SemiBold" />
                                         </Button>
 
-                                        <Button Grid.Column="3"
+                                        <Button Grid.Column="4"
                                                 Classes="danger"
                                                 Command="{Binding RemoveCommand}"
                                                 ToolTip.Tip="Remove field (staged until SAVE)">
@@ -575,7 +647,8 @@
                                         </Button>
                                     </Grid>
 
-                                    <StackPanel Spacing="6">
+                                    <StackPanel IsVisible="{Binding IsFieldNameEditorVisible}"
+                                                Spacing="6">
                                         <TextBlock Text="FIELD NAME"
                                                    FontSize="8"
                                                    FontWeight="SemiBold"
@@ -589,7 +662,8 @@
                                                  ToolTip.Tip="Predefined field names are fixed. Custom field names remain editable." />
                                     </StackPanel>
 
-                                    <StackPanel Spacing="6">
+                                    <StackPanel IsVisible="{Binding IsContentExpanded}"
+                                                Spacing="6">
                                         <TextBlock Text="CONTENT"
                                                    FontSize="8"
                                                    FontWeight="SemiBold"
@@ -636,7 +710,7 @@
                                    FontWeight="SemiBold"
                                    LetterSpacing="1" />
 
-                        <TextBlock Text="Choose a common field-name preset or enter a custom name. Presets provide a stable place for field-specific actions to be added later."
+                        <TextBlock Text="Choose a common field-name preset or enter a custom name. Select [NONE] for a field without a visible name editor."
                                    FontSize="10"
                                    LineHeight="16"
                                    Foreground="{StaticResource CriptyTextMutedBrush}"

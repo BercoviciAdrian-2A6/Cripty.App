@@ -73,6 +73,9 @@ public partial class EntryEditorViewModel :
             new PasswordGeneratorDialogViewModel(
                 new PasswordGenerator());
 
+        PasswordInspectorDialog =
+            new PasswordInspectorDialogViewModel();
+
         ApplySnapshot(
             descriptor,
             entry,
@@ -99,6 +102,10 @@ public partial class EntryEditorViewModel :
 
     public PasswordGeneratorDialogViewModel
         PasswordGeneratorDialog
+    { get; }
+
+    public PasswordInspectorDialogViewModel
+        PasswordInspectorDialog
     { get; }
 
     [ObservableProperty]
@@ -566,6 +573,13 @@ public partial class EntryEditorViewModel :
                 field.Text = generatedPassword);
     }
 
+    private void OpenPasswordInspector(
+        EntryTextFieldViewModel field)
+    {
+        PasswordInspectorDialog.Open(
+            field.Text);
+    }
+
     private void FieldContentsChanged()
     {
         if (!_isApplyingSnapshot)
@@ -715,7 +729,8 @@ public partial class EntryEditorViewModel :
             MoveFieldUp,
             MoveFieldDown,
             RemoveField,
-            OpenPasswordGenerator);
+            OpenPasswordGenerator,
+            OpenPasswordInspector);
     }
 
     private void RebuildTags()
@@ -1076,6 +1091,8 @@ public partial class EntryTextFieldViewModel :
     private readonly Action<EntryTextFieldViewModel> _remove;
     private readonly Action<EntryTextFieldViewModel>
         _openPasswordGenerator;
+    private readonly Action<EntryTextFieldViewModel>
+        _openPasswordInspector;
     private bool _isInitializing = true;
 
     public EntryTextFieldViewModel(
@@ -1087,7 +1104,9 @@ public partial class EntryTextFieldViewModel :
         Action<EntryTextFieldViewModel> moveDown,
         Action<EntryTextFieldViewModel> remove,
         Action<EntryTextFieldViewModel>
-            openPasswordGenerator)
+            openPasswordGenerator,
+        Action<EntryTextFieldViewModel>
+            openPasswordInspector)
     {
         if (fieldId == Guid.Empty)
         {
@@ -1117,6 +1136,11 @@ public partial class EntryTextFieldViewModel :
             openPasswordGenerator ??
             throw new ArgumentNullException(
                 nameof(openPasswordGenerator));
+
+        _openPasswordInspector =
+            openPasswordInspector ??
+            throw new ArgumentNullException(
+                nameof(openPasswordInspector));
 
         Name = name;
         Text = text;
@@ -1241,6 +1265,21 @@ public partial class EntryTextFieldViewModel :
         _openPasswordGenerator(this);
     }
 
+    private bool CanOpenPasswordInspector()
+    {
+        return IsPasswordField &&
+            !string.IsNullOrEmpty(
+                Text);
+    }
+
+    [RelayCommand(
+        CanExecute =
+            nameof(CanOpenPasswordInspector))]
+    private void OpenPasswordInspector()
+    {
+        _openPasswordInspector(this);
+    }
+
     [RelayCommand(CanExecute = nameof(CanMoveUp))]
     private void MoveUp()
     {
@@ -1301,6 +1340,9 @@ public partial class EntryTextFieldViewModel :
         OpenPasswordGeneratorCommand
             .NotifyCanExecuteChanged();
 
+        OpenPasswordInspectorCommand
+            .NotifyCanExecuteChanged();
+
         if (!_isInitializing &&
             preset?.CollapseContentByDefault == true)
         {
@@ -1326,6 +1368,9 @@ public partial class EntryTextFieldViewModel :
     partial void OnTextChanged(
         string value)
     {
+        OpenPasswordInspectorCommand
+            .NotifyCanExecuteChanged();
+
         if (!_isInitializing)
         {
             _changed();

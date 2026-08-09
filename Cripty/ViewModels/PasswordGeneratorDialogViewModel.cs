@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -12,6 +13,8 @@ public partial class PasswordGeneratorDialogViewModel :
 {
     private readonly PasswordGenerator _generator;
     private Action<string>? _applyGeneratedPassword;
+    private int _requestedSecurityBits = 128;
+    private bool _isSynchronizingSecurityTarget;
 
     public PasswordGeneratorDialogViewModel(
         PasswordGenerator generator)
@@ -35,11 +38,25 @@ public partial class PasswordGeneratorDialogViewModel :
     }
 
     [ObservableProperty]
-    public partial decimal SecurityBits
+    public partial string SecurityBitsText
+    {
+        get;
+        set;
+    } = "128";
+
+    [ObservableProperty]
+    public partial double SecuritySliderValue
     {
         get;
         set;
     } = 128;
+
+    [ObservableProperty]
+    public partial bool IsSecurityBitsInputValid
+    {
+        get;
+        private set;
+    } = true;
 
     [ObservableProperty]
     public partial PasswordCharacterSetOptionViewModel
@@ -50,7 +67,16 @@ public partial class PasswordGeneratorDialogViewModel :
     } = PasswordCharacterSetOptionViewModel.Base64;
 
     public int RequestedSecurityBits =>
-        decimal.ToInt32(SecurityBits);
+        _requestedSecurityBits;
+
+    public bool HasSecurityBitsInputMessage =>
+        !IsSecurityBitsInputValid;
+
+    public string SecurityBitsInputMessage =>
+        string.IsNullOrWhiteSpace(
+            SecurityBitsText)
+            ? "Enter a value or move the slider."
+            : "Use a whole number from 1 to 256.";
 
     public int CharacterCount =>
         PasswordGenerator.CalculateCharacterCount(
@@ -112,9 +138,6 @@ public partial class PasswordGeneratorDialogViewModel :
             CalculateSecurityColor(
                 RequestedSecurityBits));
 
-    public double SecurityProgressValue =>
-        RequestedSecurityBits;
-
     public void Open(
         Action<string> applyGeneratedPassword)
     {
@@ -132,7 +155,12 @@ public partial class PasswordGeneratorDialogViewModel :
         Close();
     }
 
-    [RelayCommand]
+    private bool CanGenerate()
+    {
+        return IsSecurityBitsInputValid;
+    }
+
+    [RelayCommand(CanExecute = nameof(CanGenerate))]
     private void Generate()
     {
         Action<string> applyGeneratedPassword =
@@ -149,25 +177,53 @@ public partial class PasswordGeneratorDialogViewModel :
         Close();
     }
 
-    partial void OnSecurityBitsChanged(
-        decimal value)
+    partial void OnSecurityBitsTextChanged(
+        string value)
     {
-        decimal normalized =
+        if (_isSynchronizingSecurityTarget)
+        {
+            return;
+        }
+
+        if (int.TryParse(
+                value,
+                NumberStyles.None,
+                CultureInfo.InvariantCulture,
+                out int securityBits) &&
+            securityBits is >=
+                PasswordGenerator.MinimumSecurityBits and
+                <= PasswordGenerator.MaximumSecurityBits)
+        {
+            SetSecurityTarget(
+                securityBits,
+                updateText: false);
+
+            return;
+        }
+
+        IsSecurityBitsInputValid = false;
+        RefreshSecurityInputState();
+    }
+
+    partial void OnSecuritySliderValueChanged(
+        double value)
+    {
+        if (_isSynchronizingSecurityTarget)
+        {
+            return;
+        }
+
+        int securityBits =
             Math.Clamp(
-                decimal.Round(
+                (int)Math.Round(
                     value,
-                    decimals: 0,
                     MidpointRounding.AwayFromZero),
                 PasswordGenerator.MinimumSecurityBits,
                 PasswordGenerator.MaximumSecurityBits);
 
-        if (value != normalized)
-        {
-            SecurityBits = normalized;
-            return;
-        }
-
-        RefreshDerivedValues();
+        SetSecurityTarget(
+            securityBits,
+            updateText: true);
     }
 
     partial void OnSelectedCharacterSetChanged(
@@ -198,9 +254,45 @@ public partial class PasswordGeneratorDialogViewModel :
 
         OnPropertyChanged(
             nameof(SecurityIndicatorBrush));
+    }
+
+    private void SetSecurityTarget(
+        int securityBits,
+        bool updateText)
+    {
+        _requestedSecurityBits = securityBits;
+        _isSynchronizingSecurityTarget = true;
+
+        try
+        {
+            SecuritySliderValue = securityBits;
+
+            if (updateText)
+            {
+                SecurityBitsText =
+                    securityBits.ToString(
+                        CultureInfo.InvariantCulture);
+            }
+        }
+        finally
+        {
+            _isSynchronizingSecurityTarget = false;
+        }
+
+        IsSecurityBitsInputValid = true;
+        RefreshDerivedValues();
+        RefreshSecurityInputState();
+    }
+
+    private void RefreshSecurityInputState()
+    {
+        OnPropertyChanged(
+            nameof(HasSecurityBitsInputMessage));
 
         OnPropertyChanged(
-            nameof(SecurityProgressValue));
+            nameof(SecurityBitsInputMessage));
+
+        GenerateCommand.NotifyCanExecuteChanged();
     }
 
     private void Close()

@@ -9,6 +9,7 @@ using CommunityToolkit.Mvvm.Input;
 using Cripty.Application.Vaults;
 using Cripty.Core.Entries;
 using Cripty.Core.Vaults;
+using Cripty.Cryptography.Passwords;
 
 namespace Cripty.ViewModels;
 
@@ -68,6 +69,10 @@ public partial class EntryEditorViewModel :
         SelectedFieldPreset =
             EntryFieldPresetViewModel.Custom;
 
+        PasswordGeneratorDialog =
+            new PasswordGeneratorDialogViewModel(
+                new PasswordGenerator());
+
         ApplySnapshot(
             descriptor,
             entry,
@@ -91,6 +96,10 @@ public partial class EntryEditorViewModel :
     public ObservableCollection<
         EntryEditorTagOptionViewModel> AvailableTags
     { get; } = [];
+
+    public PasswordGeneratorDialogViewModel
+        PasswordGeneratorDialog
+    { get; }
 
     [ObservableProperty]
     public partial string EntryName
@@ -549,6 +558,14 @@ public partial class EntryEditorViewModel :
         }
     }
 
+    private void OpenPasswordGenerator(
+        EntryTextFieldViewModel field)
+    {
+        PasswordGeneratorDialog.Open(
+            generatedPassword =>
+                field.Text = generatedPassword);
+    }
+
     private void FieldContentsChanged()
     {
         if (!_isApplyingSnapshot)
@@ -697,7 +714,8 @@ public partial class EntryEditorViewModel :
             FieldContentsChanged,
             MoveFieldUp,
             MoveFieldDown,
-            RemoveField);
+            RemoveField,
+            OpenPasswordGenerator);
     }
 
     private void RebuildTags()
@@ -1056,6 +1074,8 @@ public partial class EntryTextFieldViewModel :
     private readonly Action<EntryTextFieldViewModel> _moveUp;
     private readonly Action<EntryTextFieldViewModel> _moveDown;
     private readonly Action<EntryTextFieldViewModel> _remove;
+    private readonly Action<EntryTextFieldViewModel>
+        _openPasswordGenerator;
     private bool _isInitializing = true;
 
     public EntryTextFieldViewModel(
@@ -1065,7 +1085,9 @@ public partial class EntryTextFieldViewModel :
         Action changed,
         Action<EntryTextFieldViewModel> moveUp,
         Action<EntryTextFieldViewModel> moveDown,
-        Action<EntryTextFieldViewModel> remove)
+        Action<EntryTextFieldViewModel> remove,
+        Action<EntryTextFieldViewModel>
+            openPasswordGenerator)
     {
         if (fieldId == Guid.Empty)
         {
@@ -1090,6 +1112,11 @@ public partial class EntryTextFieldViewModel :
         _remove = remove ??
             throw new ArgumentNullException(
                 nameof(remove));
+
+        _openPasswordGenerator =
+            openPasswordGenerator ??
+            throw new ArgumentNullException(
+                nameof(openPasswordGenerator));
 
         Name = name;
         Text = text;
@@ -1187,11 +1214,31 @@ public partial class EntryTextFieldViewModel :
         EntryFieldPresetViewModel.FindByFieldName(
             Name)?.HidesNameEditor != true;
 
+    public bool IsPasswordField =>
+        string.Equals(
+            EntryFieldPresetViewModel.FindByFieldName(
+                Name)?.Key,
+            EntryFieldPresetViewModel.Password.Key,
+            StringComparison.Ordinal);
+
     [RelayCommand]
     private void ToggleContent()
     {
         IsContentExpanded =
             !IsContentExpanded;
+    }
+
+    private bool CanOpenPasswordGenerator()
+    {
+        return IsPasswordField;
+    }
+
+    [RelayCommand(
+        CanExecute =
+            nameof(CanOpenPasswordGenerator))]
+    private void OpenPasswordGenerator()
+    {
+        _openPasswordGenerator(this);
     }
 
     [RelayCommand(CanExecute = nameof(CanMoveUp))]
@@ -1247,6 +1294,12 @@ public partial class EntryTextFieldViewModel :
 
         OnPropertyChanged(
             nameof(IsFieldNameEditorVisible));
+
+        OnPropertyChanged(
+            nameof(IsPasswordField));
+
+        OpenPasswordGeneratorCommand
+            .NotifyCanExecuteChanged();
 
         if (!_isInitializing &&
             preset?.CollapseContentByDefault == true)

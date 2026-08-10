@@ -9,6 +9,7 @@ using CommunityToolkit.Mvvm.Input;
 using Cripty.Application.Vaults;
 using Cripty.Core.Entries;
 using Cripty.Core.Vaults;
+using Cripty.Cryptography.OneTimePasswords;
 using Cripty.Cryptography.Passwords;
 
 namespace Cripty.ViewModels;
@@ -76,6 +77,10 @@ public partial class EntryEditorViewModel :
         PasswordInspectorDialog =
             new PasswordInspectorDialogViewModel();
 
+        TotpCodeDialog =
+            new TotpCodeDialogViewModel(
+                new TotpGenerator());
+
         ApplySnapshot(
             descriptor,
             entry,
@@ -106,6 +111,10 @@ public partial class EntryEditorViewModel :
 
     public PasswordInspectorDialogViewModel
         PasswordInspectorDialog
+    { get; }
+
+    public TotpCodeDialogViewModel
+        TotpCodeDialog
     { get; }
 
     [ObservableProperty]
@@ -580,6 +589,13 @@ public partial class EntryEditorViewModel :
             field.Text);
     }
 
+    private void OpenTotpCode(
+        EntryTextFieldViewModel field)
+    {
+        TotpCodeDialog.Open(
+            field.Text);
+    }
+
     private void FieldContentsChanged()
     {
         if (!_isApplyingSnapshot)
@@ -730,7 +746,8 @@ public partial class EntryEditorViewModel :
             MoveFieldDown,
             RemoveField,
             OpenPasswordGenerator,
-            OpenPasswordInspector);
+            OpenPasswordInspector,
+            OpenTotpCode);
     }
 
     private void RebuildTags()
@@ -1093,6 +1110,8 @@ public partial class EntryTextFieldViewModel :
         _openPasswordGenerator;
     private readonly Action<EntryTextFieldViewModel>
         _openPasswordInspector;
+    private readonly Action<EntryTextFieldViewModel>
+        _openTotpCode;
     private bool _isInitializing = true;
 
     public EntryTextFieldViewModel(
@@ -1106,7 +1125,9 @@ public partial class EntryTextFieldViewModel :
         Action<EntryTextFieldViewModel>
             openPasswordGenerator,
         Action<EntryTextFieldViewModel>
-            openPasswordInspector)
+            openPasswordInspector,
+        Action<EntryTextFieldViewModel>
+            openTotpCode)
     {
         if (fieldId == Guid.Empty)
         {
@@ -1141,6 +1162,11 @@ public partial class EntryTextFieldViewModel :
             openPasswordInspector ??
             throw new ArgumentNullException(
                 nameof(openPasswordInspector));
+
+        _openTotpCode =
+            openTotpCode ??
+            throw new ArgumentNullException(
+                nameof(openTotpCode));
 
         Name = name;
         Text = text;
@@ -1245,6 +1271,13 @@ public partial class EntryTextFieldViewModel :
             EntryFieldPresetViewModel.Password.Key,
             StringComparison.Ordinal);
 
+    public bool IsTotpField =>
+        string.Equals(
+            EntryFieldPresetViewModel.FindByFieldName(
+                Name)?.Key,
+            EntryFieldPresetViewModel.Totp.Key,
+            StringComparison.Ordinal);
+
     [RelayCommand]
     private void ToggleContent()
     {
@@ -1278,6 +1311,21 @@ public partial class EntryTextFieldViewModel :
     private void OpenPasswordInspector()
     {
         _openPasswordInspector(this);
+    }
+
+    private bool CanOpenTotpCode()
+    {
+        return IsTotpField &&
+            !string.IsNullOrWhiteSpace(
+                Text);
+    }
+
+    [RelayCommand(
+        CanExecute =
+            nameof(CanOpenTotpCode))]
+    private void OpenTotpCode()
+    {
+        _openTotpCode(this);
     }
 
     [RelayCommand(CanExecute = nameof(CanMoveUp))]
@@ -1337,10 +1385,16 @@ public partial class EntryTextFieldViewModel :
         OnPropertyChanged(
             nameof(IsPasswordField));
 
+        OnPropertyChanged(
+            nameof(IsTotpField));
+
         OpenPasswordGeneratorCommand
             .NotifyCanExecuteChanged();
 
         OpenPasswordInspectorCommand
+            .NotifyCanExecuteChanged();
+
+        OpenTotpCodeCommand
             .NotifyCanExecuteChanged();
 
         if (!_isInitializing &&
@@ -1369,6 +1423,9 @@ public partial class EntryTextFieldViewModel :
         string value)
     {
         OpenPasswordInspectorCommand
+            .NotifyCanExecuteChanged();
+
+        OpenTotpCodeCommand
             .NotifyCanExecuteChanged();
 
         if (!_isInitializing)
@@ -1480,6 +1537,14 @@ public sealed class EntryFieldPresetViewModel
             "Password",
             collapseContentByDefault: true);
 
+    public static EntryFieldPresetViewModel Totp
+    { get; } =
+        new(
+            "totp",
+            "TOTP",
+            "TOTP",
+            collapseContentByDefault: true);
+
     public static IReadOnlyList<
         EntryFieldPresetViewModel> All
     { get; } =
@@ -1490,6 +1555,7 @@ public sealed class EntryFieldPresetViewModel
             Password,
             new("email", "EMAIL", "Email"),
             new("website", "WEBSITE", "Website"),
+            Totp,
             new(
                 "notes",
                 "NOTES",

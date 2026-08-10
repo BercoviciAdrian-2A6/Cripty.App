@@ -1,0 +1,145 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Cripty.ViewModels"
+             x:Class="Cripty.Views.TotpCodeView"
+             x:DataType="vm:TotpCodeDialogViewModel"
+             HorizontalAlignment="Stretch"
+             VerticalAlignment="Stretch">
+
+    <Border Background="#E607110D">
+        <Border Width="520"
+                MaxHeight="650"
+                Margin="24"
+                Padding="25"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Background="{StaticResource CriptySurfaceBrush}"
+                BorderBrush="{StaticResource CriptyBorderBrightBrush}"
+                BorderThickness="1"
+                CornerRadius="5">
+
+            <StackPanel Spacing="18">
+                <StackPanel Spacing="5">
+                    <TextBlock Text="AUTHENTICATION CODE"
+                               FontSize="19"
+                               FontWeight="SemiBold"
+                               LetterSpacing="1" />
+
+                    <TextBlock Text="Generated locally from the TOTP provisioning URI stored in this field."
+                               FontSize="10"
+                               LineHeight="16"
+                               Foreground="{StaticResource CriptyTextMutedBrush}"
+                               TextWrapping="Wrap" />
+                </StackPanel>
+
+                <Border IsVisible="{Binding HasCode}"
+                        Padding="20"
+                        Background="#101E18"
+                        BorderBrush="#547D69"
+                        BorderThickness="1"
+                        CornerRadius="4">
+
+                    <StackPanel Spacing="15">
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="{Binding IssuerText}"
+                                       HorizontalAlignment="Center"
+                                       TextAlignment="Center"
+                                       FontSize="13"
+                                       FontWeight="SemiBold"
+                                       LetterSpacing="0.8"
+                                       TextWrapping="Wrap" />
+
+                            <TextBlock Text="{Binding AccountText}"
+                                       IsVisible="{Binding HasAccount}"
+                                       HorizontalAlignment="Center"
+                                       TextAlignment="Center"
+                                       FontSize="9"
+                                       Foreground="{StaticResource CriptyTextMutedBrush}"
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
+
+                        <TextBlock Text="{Binding CodeText}"
+                                   HorizontalAlignment="Center"
+                                   TextAlignment="Center"
+                                   FontFamily="Cascadia Mono, Consolas, monospace"
+                                   FontSize="42"
+                                   FontWeight="Bold"
+                                   LetterSpacing="4"
+                                   Foreground="{StaticResource CriptyAccentBrush}" />
+
+                        <StackPanel Spacing="7">
+                            <ProgressBar Minimum="0"
+                                         Maximum="1"
+                                         Value="{Binding RemainingFraction}"
+                                         Height="8"
+                                         Foreground="#79A98E"
+                                         Background="#111B17" />
+
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Text="{Binding RemainingTimeText}"
+                                           FontSize="8"
+                                           FontWeight="SemiBold"
+                                           LetterSpacing="0.8"
+                                           Foreground="#A8C6B4" />
+
+                                <TextBlock Grid.Column="1"
+                                           Text="{Binding ConfigurationText}"
+                                           Margin="14,0,0,0"
+                                           FontSize="8"
+                                           Foreground="{StaticResource CriptyTextMutedBrush}" />
+                            </Grid>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <Border IsVisible="{Binding HasError}"
+                        Padding="13"
+                        Background="#291B13"
+                        BorderBrush="{StaticResource CriptyDangerBrush}"
+                        BorderThickness="1"
+                        CornerRadius="3">
+
+                    <StackPanel Spacing="7">
+                        <TextBlock Text="TOTP DATA COULD NOT BE READ"
+                                   FontSize="9"
+                                   FontWeight="SemiBold"
+                                   LetterSpacing="0.8"
+                                   Foreground="{StaticResource CriptyDangerBrush}" />
+
+                        <TextBlock Text="{Binding ErrorMessage}"
+                                   FontSize="9"
+                                   LineHeight="14"
+                                   Foreground="{StaticResource CriptyDangerBrush}"
+                                   TextWrapping="Wrap" />
+
+                        <TextBlock Text="Paste the untouched otpauth://totp/... text produced by the QR code into the TOTP field."
+                                   FontSize="8"
+                                   LineHeight="13"
+                                   Foreground="{StaticResource CriptyTextMutedBrush}"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Text="TOTP depends on the computer clock. A significantly incorrect clock produces an incorrect code."
+                               VerticalAlignment="Center"
+                               FontSize="8"
+                               LineHeight="13"
+                               Foreground="{StaticResource CriptyTextMutedBrush}"
+                               TextWrapping="Wrap" />
+
+                    <Button Grid.Column="1"
+                            Classes="primary"
+                            Command="{Binding CloseCommand}"
+                            Margin="16,0,0,0">
+
+                        <TextBlock Text="CLOSE"
+                                   FontSize="9"
+                                   FontWeight="SemiBold"
+                                   LetterSpacing="1" />
+                    </Button>
+                </Grid>
+            </StackPanel>
+        </Border>
+    </Border>
+</UserControl>

@@ -207,6 +207,41 @@
                     Value="#56838C" />
         </Style>
 
+        <Style Selector="Button.field-totp">
+            <Setter Property="Height"
+                    Value="28" />
+            <Setter Property="MinWidth"
+                    Value="86" />
+            <Setter Property="Padding"
+                    Value="9,0" />
+            <Setter Property="HorizontalContentAlignment"
+                    Value="Center" />
+            <Setter Property="VerticalContentAlignment"
+                    Value="Center" />
+            <Setter Property="Background"
+                    Value="#29243B" />
+            <Setter Property="Foreground"
+                    Value="#C8BBDD" />
+            <Setter Property="BorderBrush"
+                    Value="#5D5278" />
+        </Style>
+
+        <Style Selector="Button.field-totp /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Padding"
+                    Value="0" />
+            <Setter Property="HorizontalContentAlignment"
+                    Value="Center" />
+            <Setter Property="VerticalContentAlignment"
+                    Value="Center" />
+        </Style>
+
+        <Style Selector="Button.field-totp:pointerover">
+            <Setter Property="Background"
+                    Value="#37304E" />
+            <Setter Property="BorderBrush"
+                    Value="#7C6D9D" />
+        </Style>
+
         <Style Selector="Button.tag-chip-remove">
             <Setter Property="Width"
                     Value="24" />
@@ -691,7 +726,7 @@
                                     CornerRadius="4">
 
                                 <StackPanel Spacing="11">
-                                    <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
+                                    <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
                                         <StackPanel Spacing="4">
                                             <TextBlock Text="{Binding PositionText}"
                                                        FontSize="8"
@@ -749,13 +784,26 @@
                                                 Margin="0,0,8,0"
                                                 ToolTip.Tip="View the password in numbered, character-classified groups">
 
-                                            <TextBlock Text="VIEW / INSPECT"
+                                            <TextBlock Text="INSPECT"
                                                        FontSize="8"
                                                        FontWeight="SemiBold"
                                                        LetterSpacing="0.6" />
                                         </Button>
 
                                         <Button Grid.Column="4"
+                                                Classes="field-totp"
+                                                IsVisible="{Binding IsTotpField}"
+                                                Command="{Binding OpenTotpCodeCommand}"
+                                                Margin="0,0,8,0"
+                                                ToolTip.Tip="Show the current authentication code from this TOTP provisioning URI">
+
+                                            <TextBlock Text="AUTH CODE"
+                                                       FontSize="8"
+                                                       FontWeight="SemiBold"
+                                                       LetterSpacing="0.6" />
+                                        </Button>
+
+                                        <Button Grid.Column="5"
                                                 Classes="field-copy"
                                                 Click="CopyFieldContent"
                                                 Margin="0,0,8,0"
@@ -767,7 +815,7 @@
                                                        LetterSpacing="0.7" />
                                         </Button>
 
-                                        <Button Grid.Column="5"
+                                        <Button Grid.Column="6"
                                                 Classes="field-arrow"
                                                 Command="{Binding MoveUpCommand}"
                                                 Margin="0,0,6,0"
@@ -778,7 +826,7 @@
                                                        FontWeight="SemiBold" />
                                         </Button>
 
-                                        <Button Grid.Column="6"
+                                        <Button Grid.Column="7"
                                                 Classes="field-arrow"
                                                 Command="{Binding MoveDownCommand}"
                                                 Margin="0,0,8,0"
@@ -789,7 +837,7 @@
                                                        FontWeight="SemiBold" />
                                         </Button>
 
-                                        <Button Grid.Column="7"
+                                        <Button Grid.Column="8"
                                                 Classes="danger"
                                                 Command="{Binding RemoveCommand}"
                                                 ToolTip.Tip="Remove field (staged until SAVE)">
@@ -964,6 +1012,12 @@
             Grid.RowSpan="2"
             ZIndex="40"
             DataContext="{Binding PasswordInspectorDialog}"
+            IsVisible="{Binding IsOpen}" />
+
+        <views:TotpCodeView
+            Grid.RowSpan="2"
+            ZIndex="50"
+            DataContext="{Binding TotpCodeDialog}"
             IsVisible="{Binding IsOpen}" />
     </Grid>
 </UserControl>

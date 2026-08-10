@@ -220,6 +220,31 @@ public sealed class EntryTextFieldViewModelTests
     }
 
     [TestMethod]
+    public void ColorAndSizeCommands_UseTheExistingTextValue()
+    {
+        EntryTextFieldViewModel field =
+            CreateField(
+                "Notes",
+                "Readable text");
+
+        field.SelectionStart = 0;
+        field.SelectionEnd = 8;
+
+        field.ApplyTextColorCommand.Execute(
+            "Blue");
+
+        field.ApplyTextSizeCommand.Execute(
+            "Large");
+
+        Assert.AreEqual(
+            "[[blue]][[large]]Readable[[/large]][[/blue]] text",
+            field.Text);
+
+        Assert.IsTrue(
+            field.IsFormattingEditorVisible);
+    }
+
+    [TestMethod]
     public void StructuredField_DisablesFormattingCommands()
     {
         EntryTextFieldViewModel field =
@@ -236,6 +261,16 @@ public sealed class EntryTextFieldViewModelTests
             field.ApplyBoldFormattingCommand
                 .CanExecute(
                     parameter: null));
+
+        Assert.IsFalse(
+            field.ApplyTextColorCommand
+                .CanExecute(
+                    parameter: "Red"));
+
+        Assert.IsFalse(
+            field.ApplyTextSizeCommand
+                .CanExecute(
+                    parameter: "Large"));
 
         Assert.IsTrue(
             field.IsPlainTextEditorVisible);

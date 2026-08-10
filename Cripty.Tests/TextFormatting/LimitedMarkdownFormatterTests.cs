@@ -75,6 +75,102 @@ public sealed class LimitedMarkdownFormatterTests
     }
 
     [TestMethod]
+    public void ApplyColor_WrapsSelectionWithStableNamedMarkers()
+    {
+        TextFormattingEdit edit =
+            LimitedMarkdownFormatter.ApplyColor(
+                "Color this text",
+                6,
+                10,
+                FormattedTextColor.Blue);
+
+        Assert.AreEqual(
+            "Color [[blue]]this[[/blue]] text",
+            edit.Text);
+
+        Assert.AreEqual(
+            14,
+            edit.SelectionStart);
+
+        Assert.AreEqual(
+            18,
+            edit.SelectionEnd);
+    }
+
+    [TestMethod]
+    public void ApplyColor_ReplacesAnotherPredefinedColor()
+    {
+        const string original =
+            "[[red]]Warning[[/red]]";
+
+        TextFormattingEdit edit =
+            LimitedMarkdownFormatter.ApplyColor(
+                original,
+                7,
+                14,
+                FormattedTextColor.Green);
+
+        Assert.AreEqual(
+            "[[green]]Warning[[/green]]",
+            edit.Text);
+    }
+
+    [TestMethod]
+    public void ApplyDefaultColor_RemovesPredefinedColor()
+    {
+        const string original =
+            "[[purple]]Text[[/purple]]";
+
+        TextFormattingEdit edit =
+            LimitedMarkdownFormatter.ApplyColor(
+                original,
+                10,
+                14,
+                FormattedTextColor.Default);
+
+        Assert.AreEqual(
+            "Text",
+            edit.Text);
+    }
+
+    [TestMethod]
+    public void ApplySize_ReplacesSizeAndNormalRemovesIt()
+    {
+        TextFormattingEdit large =
+            LimitedMarkdownFormatter.ApplySize(
+                "Text",
+                0,
+                4,
+                FormattedTextSize.Large);
+
+        Assert.AreEqual(
+            "[[large]]Text[[/large]]",
+            large.Text);
+
+        TextFormattingEdit small =
+            LimitedMarkdownFormatter.ApplySize(
+                large.Text,
+                large.SelectionStart,
+                large.SelectionEnd,
+                FormattedTextSize.Small);
+
+        Assert.AreEqual(
+            "[[small]]Text[[/small]]",
+            small.Text);
+
+        TextFormattingEdit normal =
+            LimitedMarkdownFormatter.ApplySize(
+                small.Text,
+                small.SelectionStart,
+                small.SelectionEnd,
+                FormattedTextSize.Normal);
+
+        Assert.AreEqual(
+            "Text",
+            normal.Text);
+    }
+
+    [TestMethod]
     public void ApplyNumberedList_FormatsEverySelectedLine()
     {
         TextFormattingEdit edit =
@@ -217,6 +313,50 @@ public sealed class LimitedMarkdownFormatterTests
 
         Assert.IsFalse(
             block.Inlines.Single().IsItalic);
+    }
+
+    [TestMethod]
+    public void Parse_CombinesColorSizeAndExistingInlineStyles()
+    {
+        FormattedTextInline inline =
+            LimitedMarkdownFormatter.Parse(
+                    "[[teal]][[large]]**Important**[[/large]][[/teal]]")
+                .Single()
+                .Inlines
+                .Single();
+
+        Assert.AreEqual(
+            "Important",
+            inline.Text);
+
+        Assert.IsTrue(
+            inline.IsBold);
+
+        Assert.AreEqual(
+            FormattedTextColor.Teal,
+            inline.Color);
+
+        Assert.AreEqual(
+            FormattedTextSize.Large,
+            inline.Size);
+    }
+
+    [TestMethod]
+    public void ClearFormatting_RemovesColorAndSizeMarkers()
+    {
+        const string marked =
+            "[[pink]][[small]]Text[[/small]][[/pink]]";
+
+        TextFormattingEdit edit =
+            LimitedMarkdownFormatter.Apply(
+                marked,
+                0,
+                marked.Length,
+                TextFormattingAction.Clear);
+
+        Assert.AreEqual(
+            "Text",
+            edit.Text);
     }
 
     [TestMethod]

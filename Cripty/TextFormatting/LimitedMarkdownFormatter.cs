@@ -18,6 +18,28 @@ public enum TextFormattingAction
     Clear
 }
 
+public enum FormattedTextColor
+{
+    Default,
+    Red,
+    Orange,
+    Yellow,
+    Green,
+    Teal,
+    Cyan,
+    Blue,
+    Purple,
+    Pink,
+    Gray
+}
+
+public enum FormattedTextSize
+{
+    Small,
+    Normal,
+    Large
+}
+
 public enum FormattedTextBlockKind
 {
     Paragraph,
@@ -33,7 +55,11 @@ public sealed record FormattedTextInline(
     string Text,
     bool IsBold,
     bool IsItalic,
-    bool IsUnderlined);
+    bool IsUnderlined,
+    FormattedTextColor Color =
+        FormattedTextColor.Default,
+    FormattedTextSize Size =
+        FormattedTextSize.Normal);
 
 public sealed record FormattedTextBlock(
     FormattedTextBlockKind Kind,
@@ -55,6 +81,57 @@ public static class LimitedMarkdownFormatter
     private const string BoldMarker = "**";
     private const string ItalicMarker = "*";
     private const string UnderlineMarker = "++";
+
+    private static readonly InlineMarkerDefinition[]
+        ColorMarkers =
+        [
+            CreateColorMarker(
+                "red",
+                FormattedTextColor.Red),
+            CreateColorMarker(
+                "orange",
+                FormattedTextColor.Orange),
+            CreateColorMarker(
+                "yellow",
+                FormattedTextColor.Yellow),
+            CreateColorMarker(
+                "green",
+                FormattedTextColor.Green),
+            CreateColorMarker(
+                "teal",
+                FormattedTextColor.Teal),
+            CreateColorMarker(
+                "cyan",
+                FormattedTextColor.Cyan),
+            CreateColorMarker(
+                "blue",
+                FormattedTextColor.Blue),
+            CreateColorMarker(
+                "purple",
+                FormattedTextColor.Purple),
+            CreateColorMarker(
+                "pink",
+                FormattedTextColor.Pink),
+            CreateColorMarker(
+                "gray",
+                FormattedTextColor.Gray)
+        ];
+
+    private static readonly InlineMarkerDefinition[]
+        SizeMarkers =
+        [
+            CreateSizeMarker(
+                "small",
+                FormattedTextSize.Small),
+            CreateSizeMarker(
+                "large",
+                FormattedTextSize.Large)
+        ];
+
+    private static readonly InlineMarkerDefinition[]
+        ExtendedMarkers =
+            ColorMarkers.Concat(SizeMarkers)
+                .ToArray();
 
     public static TextFormattingEdit Apply(
         string text,
@@ -127,6 +204,56 @@ public static class LimitedMarkdownFormatter
                 action,
                 "Unknown text-formatting action.")
         };
+    }
+
+    public static TextFormattingEdit ApplyColor(
+        string text,
+        int selectionStart,
+        int selectionEnd,
+        FormattedTextColor color)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+
+        NormalizeSelection(
+            text,
+            ref selectionStart,
+            ref selectionEnd);
+
+        InlineMarkerDefinition? target =
+            ColorMarkers.FirstOrDefault(marker =>
+                marker.Color == color);
+
+        return ApplyExclusiveInlineStyle(
+            text,
+            selectionStart,
+            selectionEnd,
+            target,
+            ColorMarkers);
+    }
+
+    public static TextFormattingEdit ApplySize(
+        string text,
+        int selectionStart,
+        int selectionEnd,
+        FormattedTextSize size)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+
+        NormalizeSelection(
+            text,
+            ref selectionStart,
+            ref selectionEnd);
+
+        InlineMarkerDefinition? target =
+            SizeMarkers.FirstOrDefault(marker =>
+                marker.Size == size);
+
+        return ApplyExclusiveInlineStyle(
+            text,
+            selectionStart,
+            selectionEnd,
+            target,
+            SizeMarkers);
     }
 
     public static IReadOnlyList<FormattedTextBlock>
@@ -262,6 +389,8 @@ public static class LimitedMarkdownFormatter
             0,
             text.Length,
             InlineStyle.None,
+            FormattedTextColor.Default,
+            FormattedTextSize.Normal,
             inlines);
 
         return inlines;
@@ -272,6 +401,8 @@ public static class LimitedMarkdownFormatter
         int start,
         int end,
         InlineStyle style,
+        FormattedTextColor color,
+        FormattedTextSize size,
         List<FormattedTextInline> output)
     {
         StringBuilder plainText = new();
@@ -294,37 +425,44 @@ public static class LimitedMarkdownFormatter
                     text,
                     index,
                     end,
-                    out string marker,
-                    out InlineStyle markerStyle))
+                    out string openingMarker,
+                    out string closingMarker,
+                    out InlineStyle markerStyle,
+                    out FormattedTextColor? markerColor,
+                    out FormattedTextSize? markerSize))
             {
                 int closingIndex =
                     FindClosingMarker(
                         text,
-                        index + marker.Length,
+                        index + openingMarker.Length,
                         end,
-                        marker);
+                        closingMarker);
 
                 if (closingIndex >= 0)
                 {
                     FlushInlineText(
                         plainText,
                         style,
+                        color,
+                        size,
                         output);
 
                     ParseInlineRange(
                         text,
-                        index + marker.Length,
+                        index + openingMarker.Length,
                         closingIndex,
                         style | markerStyle,
+                        markerColor ?? color,
+                        markerSize ?? size,
                         output);
 
                     index =
-                        closingIndex + marker.Length;
+                        closingIndex + closingMarker.Length;
                     continue;
                 }
 
-                plainText.Append(marker);
-                index += marker.Length;
+                plainText.Append(openingMarker);
+                index += openingMarker.Length;
                 continue;
             }
 
@@ -335,6 +473,8 @@ public static class LimitedMarkdownFormatter
         FlushInlineText(
             plainText,
             style,
+            color,
+            size,
             output);
     }
 
@@ -342,17 +482,43 @@ public static class LimitedMarkdownFormatter
         string text,
         int index,
         int end,
-        out string marker,
-        out InlineStyle style)
+        out string openingMarker,
+        out string closingMarker,
+        out InlineStyle style,
+        out FormattedTextColor? color,
+        out FormattedTextSize? size)
     {
+        foreach (InlineMarkerDefinition definition in
+                 ExtendedMarkers)
+        {
+            if (!StartsWithAt(
+                    text,
+                    definition.OpeningMarker,
+                    index,
+                    end))
+            {
+                continue;
+            }
+
+            openingMarker = definition.OpeningMarker;
+            closingMarker = definition.ClosingMarker;
+            style = InlineStyle.None;
+            color = definition.Color;
+            size = definition.Size;
+            return true;
+        }
+
         if (StartsWithAt(
                 text,
                 BoldMarker,
                 index,
                 end))
         {
-            marker = BoldMarker;
+            openingMarker = BoldMarker;
+            closingMarker = BoldMarker;
             style = InlineStyle.Bold;
+            color = null;
+            size = null;
             return true;
         }
 
@@ -362,8 +528,11 @@ public static class LimitedMarkdownFormatter
                 index,
                 end))
         {
-            marker = UnderlineMarker;
+            openingMarker = UnderlineMarker;
+            closingMarker = UnderlineMarker;
             style = InlineStyle.Underline;
+            color = null;
+            size = null;
             return true;
         }
 
@@ -373,13 +542,19 @@ public static class LimitedMarkdownFormatter
                 index,
                 end))
         {
-            marker = ItalicMarker;
+            openingMarker = ItalicMarker;
+            closingMarker = ItalicMarker;
             style = InlineStyle.Italic;
+            color = null;
+            size = null;
             return true;
         }
 
-        marker = string.Empty;
+        openingMarker = string.Empty;
+        closingMarker = string.Empty;
         style = InlineStyle.None;
+        color = null;
+        size = null;
         return false;
     }
 
@@ -429,6 +604,8 @@ public static class LimitedMarkdownFormatter
     private static void FlushInlineText(
         StringBuilder text,
         InlineStyle style,
+        FormattedTextColor color,
+        FormattedTextSize size,
         List<FormattedTextInline> output)
     {
         if (text.Length == 0)
@@ -448,7 +625,9 @@ public static class LimitedMarkdownFormatter
                 previous.IsItalic ==
                     style.HasFlag(InlineStyle.Italic) &&
                 previous.IsUnderlined ==
-                    style.HasFlag(InlineStyle.Underline))
+                    style.HasFlag(InlineStyle.Underline) &&
+                previous.Color == color &&
+                previous.Size == size)
             {
                 output[^1] = previous with
                 {
@@ -463,13 +642,15 @@ public static class LimitedMarkdownFormatter
                 value,
                 style.HasFlag(InlineStyle.Bold),
                 style.HasFlag(InlineStyle.Italic),
-                style.HasFlag(InlineStyle.Underline)));
+                style.HasFlag(InlineStyle.Underline),
+                color,
+                size));
     }
 
     private static bool IsEscapableMarkerCharacter(
         char value)
     {
-        return value is '\\' or '*' or '+' or '#' or '-' or '.';
+        return value is '\\' or '*' or '+' or '#' or '-' or '.' or '[' or ']';
     }
 
     private static bool TryReadListItem(
@@ -557,14 +738,33 @@ public static class LimitedMarkdownFormatter
         int end,
         string marker)
     {
+        return WrapInline(
+            text,
+            start,
+            end,
+            marker,
+            marker);
+    }
+
+    private static TextFormattingEdit WrapInline(
+        string text,
+        int start,
+        int end,
+        string openingMarker,
+        string closingMarker)
+    {
         if (start == end)
         {
-            string inserted = marker + marker;
+            string inserted =
+                openingMarker + closingMarker;
+
             string result = text.Insert(
                 start,
                 inserted);
 
-            int caret = start + marker.Length;
+            int caret = start +
+                openingMarker.Length;
+
             return new TextFormattingEdit(
                 result,
                 caret,
@@ -575,34 +775,37 @@ public static class LimitedMarkdownFormatter
                 text,
                 start,
                 end,
-                marker))
+                openingMarker,
+                closingMarker))
         {
             string result = text.Remove(
                     end,
-                    marker.Length)
+                    closingMarker.Length)
                 .Remove(
-                    start - marker.Length,
-                    marker.Length);
+                    start - openingMarker.Length,
+                    openingMarker.Length);
 
             return new TextFormattingEdit(
                 result,
-                start - marker.Length,
-                end - marker.Length);
+                start - openingMarker.Length,
+                end - openingMarker.Length);
         }
 
         string selected = text[start..end];
 
         if (selected.StartsWith(
-                marker,
+                openingMarker,
                 StringComparison.Ordinal) &&
             selected.EndsWith(
-                marker,
+                closingMarker,
                 StringComparison.Ordinal) &&
-            selected.Length >= marker.Length * 2)
+            selected.Length >=
+                openingMarker.Length +
+                closingMarker.Length)
         {
             string unwrapped =
-                selected[marker.Length..
-                    ^marker.Length];
+                selected[openingMarker.Length..
+                    ^closingMarker.Length];
 
             string result = text.Remove(
                     start,
@@ -618,7 +821,7 @@ public static class LimitedMarkdownFormatter
         }
 
         string wrapped =
-            marker + selected + marker;
+            openingMarker + selected + closingMarker;
 
         string wrappedResult = text.Remove(
                 start,
@@ -629,26 +832,141 @@ public static class LimitedMarkdownFormatter
 
         return new TextFormattingEdit(
             wrappedResult,
-            start + marker.Length,
-            end + marker.Length);
+            start + openingMarker.Length,
+            end + openingMarker.Length);
+    }
+
+    private static TextFormattingEdit
+        ApplyExclusiveInlineStyle(
+            string text,
+            int start,
+            int end,
+            InlineMarkerDefinition? target,
+            IReadOnlyList<InlineMarkerDefinition>
+                definitions)
+    {
+        if (start == end)
+        {
+            return target is null
+                ? new TextFormattingEdit(
+                    text,
+                    start,
+                    end)
+                : WrapInline(
+                    text,
+                    start,
+                    end,
+                    target.OpeningMarker,
+                    target.ClosingMarker);
+        }
+
+        InlineMarkerDefinition? current = null;
+        TextFormattingEdit unwrapped =
+            new(
+                text,
+                start,
+                end);
+
+        foreach (InlineMarkerDefinition definition in
+                 definitions)
+        {
+            if (IsWrappedOutsideSelection(
+                    text,
+                    start,
+                    end,
+                    definition.OpeningMarker,
+                    definition.ClosingMarker))
+            {
+                current = definition;
+
+                string result = text.Remove(
+                        end,
+                        definition.ClosingMarker.Length)
+                    .Remove(
+                        start -
+                            definition.OpeningMarker.Length,
+                        definition.OpeningMarker.Length);
+
+                unwrapped = new TextFormattingEdit(
+                    result,
+                    start -
+                        definition.OpeningMarker.Length,
+                    end -
+                        definition.OpeningMarker.Length);
+
+                break;
+            }
+
+            string selected = text[start..end];
+
+            if (!selected.StartsWith(
+                    definition.OpeningMarker,
+                    StringComparison.Ordinal) ||
+                !selected.EndsWith(
+                    definition.ClosingMarker,
+                    StringComparison.Ordinal) ||
+                selected.Length <
+                    definition.OpeningMarker.Length +
+                    definition.ClosingMarker.Length)
+            {
+                continue;
+            }
+
+            current = definition;
+
+            string content =
+                selected[
+                    definition.OpeningMarker.Length..
+                    ^definition.ClosingMarker.Length];
+
+            string resultInside = text.Remove(
+                    start,
+                    selected.Length)
+                .Insert(
+                    start,
+                    content);
+
+            unwrapped = new TextFormattingEdit(
+                resultInside,
+                start,
+                start + content.Length);
+
+            break;
+        }
+
+        if (target is null ||
+            current == target)
+        {
+            return unwrapped;
+        }
+
+        return WrapInline(
+            unwrapped.Text,
+            unwrapped.SelectionStart,
+            unwrapped.SelectionEnd,
+            target.OpeningMarker,
+            target.ClosingMarker);
     }
 
     private static bool IsWrappedOutsideSelection(
         string text,
         int start,
         int end,
-        string marker)
+        string openingMarker,
+        string closingMarker)
     {
-        return start >= marker.Length &&
-            end + marker.Length <= text.Length &&
+        return start >= openingMarker.Length &&
+            end + closingMarker.Length <= text.Length &&
             text.AsSpan(
-                    start - marker.Length,
-                    marker.Length)
-                .SequenceEqual(marker.AsSpan()) &&
+                    start - openingMarker.Length,
+                    openingMarker.Length)
+                .SequenceEqual(
+                    openingMarker.AsSpan()) &&
             text.AsSpan(
                     end,
-                    marker.Length)
-                .SequenceEqual(marker.AsSpan());
+                    closingMarker.Length)
+                .SequenceEqual(
+                    closingMarker.AsSpan());
     }
 
     private static TextFormattingEdit ApplyBlockPrefix(
@@ -1027,6 +1345,36 @@ public static class LimitedMarkdownFormatter
             inlines.Select(inline =>
                 inline.Text));
     }
+
+    private static InlineMarkerDefinition
+        CreateColorMarker(
+            string name,
+            FormattedTextColor color)
+    {
+        return new InlineMarkerDefinition(
+            $"[[{name}]]",
+            $"[[/{name}]]",
+            color,
+            Size: null);
+    }
+
+    private static InlineMarkerDefinition
+        CreateSizeMarker(
+            string name,
+            FormattedTextSize size)
+    {
+        return new InlineMarkerDefinition(
+            $"[[{name}]]",
+            $"[[/{name}]]",
+            Color: null,
+            Size: size);
+    }
+
+    private sealed record InlineMarkerDefinition(
+        string OpeningMarker,
+        string ClosingMarker,
+        FormattedTextColor? Color,
+        FormattedTextSize? Size);
 
     [Flags]
     private enum InlineStyle

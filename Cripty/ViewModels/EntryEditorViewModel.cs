@@ -1418,6 +1418,48 @@ public partial class EntryTextFieldViewModel :
 
     [RelayCommand(
         CanExecute = nameof(CanUseTextFormatting))]
+    private void ApplyTextColor(
+        string? colorName)
+    {
+        if (!Enum.TryParse(
+                colorName,
+                ignoreCase: true,
+                out FormattedTextColor color))
+        {
+            return;
+        }
+
+        ApplyFormattingEdit(
+            LimitedMarkdownFormatter.ApplyColor(
+                Text,
+                SelectionStart,
+                SelectionEnd,
+                color));
+    }
+
+    [RelayCommand(
+        CanExecute = nameof(CanUseTextFormatting))]
+    private void ApplyTextSize(
+        string? sizeName)
+    {
+        if (!Enum.TryParse(
+                sizeName,
+                ignoreCase: true,
+                out FormattedTextSize size))
+        {
+            return;
+        }
+
+        ApplyFormattingEdit(
+            LimitedMarkdownFormatter.ApplySize(
+                Text,
+                SelectionStart,
+                SelectionEnd,
+                size));
+    }
+
+    [RelayCommand(
+        CanExecute = nameof(CanUseTextFormatting))]
     private void ApplyTitleFormatting()
     {
         ApplyFormatting(
@@ -1478,6 +1520,17 @@ public partial class EntryTextFieldViewModel :
                 SelectionStart,
                 SelectionEnd,
                 action);
+
+        ApplyFormattingEdit(edit);
+    }
+
+    private void ApplyFormattingEdit(
+        TextFormattingEdit edit)
+    {
+        if (!SupportsRichTextEditing)
+        {
+            return;
+        }
 
         IsContentExpanded = true;
         IsFormattingPreviewVisible = false;
@@ -1622,6 +1675,12 @@ public partial class EntryTextFieldViewModel :
             .NotifyCanExecuteChanged();
 
         ApplyUnderlineFormattingCommand
+            .NotifyCanExecuteChanged();
+
+        ApplyTextColorCommand
+            .NotifyCanExecuteChanged();
+
+        ApplyTextSizeCommand
             .NotifyCanExecuteChanged();
 
         ApplyTitleFormattingCommand

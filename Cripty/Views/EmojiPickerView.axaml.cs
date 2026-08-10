@@ -32,36 +32,9 @@ public partial class EmojiPickerView : UserControl
     {
         InitializeComponent();
 
-        Populate(
-            FacesPanel,
-            Faces);
-
-        Populate(
-            GesturesPanel,
-            Gestures);
-
-        Populate(
-            ObjectsPanel,
-            Objects);
-    }
-
-    private void Populate(
-        Panel panel,
-        string[] emojis)
-    {
-        foreach (string emoji in emojis)
-        {
-            Button button = new()
-            {
-                Content = emoji
-            };
-
-            button.Classes.Add(
-                "emoji-choice");
-
-            button.Click += InsertEmoji;
-            panel.Children.Add(button);
-        }
+        FacesItems.ItemsSource = Faces;
+        GesturesItems.ItemsSource = Gestures;
+        ObjectsItems.ItemsSource = Objects;
     }
 
     private void InsertEmoji(

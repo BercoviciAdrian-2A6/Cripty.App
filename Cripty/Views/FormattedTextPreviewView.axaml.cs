@@ -208,12 +208,49 @@ public partial class FormattedTextPreviewView :
                     : FontStyle.Normal,
                 TextDecorations = inline.IsUnderlined
                     ? TextDecorations.Underline
-                    : null
+                    : null,
+                FontSize = inline.Size switch
+                {
+                    FormattedTextSize.Small =>
+                        fontSize * 0.76,
+                    FormattedTextSize.Large =>
+                        fontSize * 1.36,
+                    _ => fontSize
+                }
             };
+
+            string? inlineColor =
+                GetInlineColor(inline.Color);
+
+            if (inlineColor is not null)
+            {
+                run.Foreground =
+                    new SolidColorBrush(
+                        Color.Parse(inlineColor));
+            }
 
             textBlock.Inlines!.Add(run);
         }
 
         return textBlock;
+    }
+
+    private static string? GetInlineColor(
+        FormattedTextColor color)
+    {
+        return color switch
+        {
+            FormattedTextColor.Red => "#F08A84",
+            FormattedTextColor.Orange => "#EBA267",
+            FormattedTextColor.Yellow => "#D9C56B",
+            FormattedTextColor.Green => "#8BCB78",
+            FormattedTextColor.Teal => "#69C2A5",
+            FormattedTextColor.Cyan => "#6FC3D4",
+            FormattedTextColor.Blue => "#7FAAE3",
+            FormattedTextColor.Purple => "#B19AE0",
+            FormattedTextColor.Pink => "#DE8DB7",
+            FormattedTextColor.Gray => "#AAB4B0",
+            _ => null
+        };
     }
 }

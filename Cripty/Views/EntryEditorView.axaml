@@ -320,6 +320,30 @@
                     Value="#8B5D49" />
         </Style>
 
+        <Style Selector="Button.color-swatch">
+            <Setter Property="Width"
+                    Value="31" />
+            <Setter Property="Height"
+                    Value="29" />
+            <Setter Property="MinWidth"
+                    Value="0" />
+            <Setter Property="Margin"
+                    Value="2" />
+            <Setter Property="Padding"
+                    Value="0" />
+            <Setter Property="BorderBrush"
+                    Value="#52625A" />
+            <Setter Property="BorderThickness"
+                    Value="1" />
+        </Style>
+
+        <Style Selector="Button.color-swatch:pointerover">
+            <Setter Property="BorderBrush"
+                    Value="#EEF5F0" />
+            <Setter Property="BorderThickness"
+                    Value="2" />
+        </Style>
+
         <Style Selector="Button.field-totp">
             <Setter Property="Height"
                     Value="28" />
@@ -1065,6 +1089,129 @@
                                                     </Button>
 
                                                     <Button Classes="format-tool"
+                                                            ToolTip.Tip="Apply one of 10 predefined text colors">
+                                                        <Button.Flyout>
+                                                            <Flyout>
+                                                                <Border DataContext="{Binding}"
+                                                                        Padding="10"
+                                                                        Background="{StaticResource CriptySurfaceBrush}"
+                                                                        BorderBrush="#52625A"
+                                                                        BorderThickness="1"
+                                                                        CornerRadius="3">
+                                                                    <StackPanel x:DataType="vm:EntryTextFieldViewModel"
+                                                                                Width="178"
+                                                                                Spacing="7">
+                                                                        <TextBlock Text="TEXT COLOR"
+                                                                                   FontSize="8"
+                                                                                   FontWeight="SemiBold"
+                                                                                   LetterSpacing="0.9"
+                                                                                   Foreground="{StaticResource CriptyTextMutedBrush}" />
+
+                                                                        <WrapPanel Orientation="Horizontal">
+                                                                            <Button Classes="color-swatch"
+                                                                                    Background="#F08A84"
+                                                                                    Command="{Binding ApplyTextColorCommand}"
+                                                                                    CommandParameter="Red"
+                                                                                    ToolTip.Tip="Red" />
+                                                                            <Button Classes="color-swatch"
+                                                                                    Background="#EBA267"
+                                                                                    Command="{Binding ApplyTextColorCommand}"
+                                                                                    CommandParameter="Orange"
+                                                                                    ToolTip.Tip="Orange" />
+                                                                            <Button Classes="color-swatch"
+                                                                                    Background="#D9C56B"
+                                                                                    Command="{Binding ApplyTextColorCommand}"
+                                                                                    CommandParameter="Yellow"
+                                                                                    ToolTip.Tip="Yellow" />
+                                                                            <Button Classes="color-swatch"
+                                                                                    Background="#8BCB78"
+                                                                                    Command="{Binding ApplyTextColorCommand}"
+                                                                                    CommandParameter="Green"
+                                                                                    ToolTip.Tip="Green" />
+                                                                            <Button Classes="color-swatch"
+                                                                                    Background="#69C2A5"
+                                                                                    Command="{Binding ApplyTextColorCommand}"
+                                                                                    CommandParameter="Teal"
+                                                                                    ToolTip.Tip="Teal" />
+                                                                            <Button Classes="color-swatch"
+                                                                                    Background="#6FC3D4"
+                                                                                    Command="{Binding ApplyTextColorCommand}"
+                                                                                    CommandParameter="Cyan"
+                                                                                    ToolTip.Tip="Cyan" />
+                                                                            <Button Classes="color-swatch"
+                                                                                    Background="#7FAAE3"
+                                                                                    Command="{Binding ApplyTextColorCommand}"
+                                                                                    CommandParameter="Blue"
+                                                                                    ToolTip.Tip="Blue" />
+                                                                            <Button Classes="color-swatch"
+                                                                                    Background="#B19AE0"
+                                                                                    Command="{Binding ApplyTextColorCommand}"
+                                                                                    CommandParameter="Purple"
+                                                                                    ToolTip.Tip="Purple" />
+                                                                            <Button Classes="color-swatch"
+                                                                                    Background="#DE8DB7"
+                                                                                    Command="{Binding ApplyTextColorCommand}"
+                                                                                    CommandParameter="Pink"
+                                                                                    ToolTip.Tip="Pink" />
+                                                                            <Button Classes="color-swatch"
+                                                                                    Background="#AAB4B0"
+                                                                                    Command="{Binding ApplyTextColorCommand}"
+                                                                                    CommandParameter="Gray"
+                                                                                    ToolTip.Tip="Gray" />
+                                                                        </WrapPanel>
+
+                                                                        <Button Classes="format-tool"
+                                                                                HorizontalAlignment="Stretch"
+                                                                                Command="{Binding ApplyTextColorCommand}"
+                                                                                CommandParameter="Default"
+                                                                                ToolTip.Tip="Remove the predefined color from the selection">
+                                                                            <TextBlock Text="DEFAULT COLOR"
+                                                                                       FontSize="8"
+                                                                                       FontWeight="SemiBold"
+                                                                                       LetterSpacing="0.4" />
+                                                                        </Button>
+                                                                    </StackPanel>
+                                                                </Border>
+                                                            </Flyout>
+                                                        </Button.Flyout>
+
+                                                        <TextBlock Text="COLOR"
+                                                                   FontSize="8"
+                                                                   FontWeight="SemiBold"
+                                                                   LetterSpacing="0.4" />
+                                                    </Button>
+
+                                                    <Button Classes="format-tool"
+                                                            Command="{Binding ApplyTextSizeCommand}"
+                                                            CommandParameter="Small"
+                                                            ToolTip.Tip="Apply small text to the selection">
+                                                        <TextBlock Text="SMALL"
+                                                                   FontSize="7"
+                                                                   FontWeight="SemiBold"
+                                                                   LetterSpacing="0.3" />
+                                                    </Button>
+
+                                                    <Button Classes="format-tool"
+                                                            Command="{Binding ApplyTextSizeCommand}"
+                                                            CommandParameter="Normal"
+                                                            ToolTip.Tip="Restore normal text size on the selection">
+                                                        <TextBlock Text="NORMAL"
+                                                                   FontSize="8"
+                                                                   FontWeight="SemiBold"
+                                                                   LetterSpacing="0.3" />
+                                                    </Button>
+
+                                                    <Button Classes="format-tool"
+                                                            Command="{Binding ApplyTextSizeCommand}"
+                                                            CommandParameter="Large"
+                                                            ToolTip.Tip="Apply large text to the selection">
+                                                        <TextBlock Text="LARGE"
+                                                                   FontSize="10"
+                                                                   FontWeight="SemiBold"
+                                                                   LetterSpacing="0.3" />
+                                                    </Button>
+
+                                                    <Button Classes="format-tool"
                                                             Command="{Binding ApplyTitleFormattingCommand}"
                                                             ToolTip.Tip="Make the selected line or lines titles">
                                                         <TextBlock Text="TITLE"
@@ -1133,22 +1280,11 @@
                                                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                                      ScrollViewer.VerticalScrollBarVisibility="Disabled"
                                                      PlaceholderText="Enter text" />
-
-                                            <TextBlock Text="Formatting is stored as lightweight markers. Tab inserts indentation; switch to READ to hide the markers."
-                                                       FontSize="8"
-                                                       LineHeight="13"
-                                                       Foreground="{StaticResource CriptyTextMutedBrush}"
-                                                       TextWrapping="Wrap" />
                                         </StackPanel>
 
                                         <StackPanel IsVisible="{Binding IsFormattedTextPreviewVisible}"
                                                     Spacing="6">
                                             <views:FormattedTextPreviewView Text="{Binding Text}" />
-
-                                            <TextBlock Text="READ MODE · Raw HTML is displayed as text and never executed."
-                                                       FontSize="8"
-                                                       LetterSpacing="0.4"
-                                                       Foreground="{StaticResource CriptyTextMutedBrush}" />
                                         </StackPanel>
 
                                         <TextBox IsVisible="{Binding IsPlainTextEditorVisible}"

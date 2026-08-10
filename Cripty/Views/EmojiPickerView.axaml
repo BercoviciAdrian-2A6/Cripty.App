@@ -7,17 +7,17 @@
     <UserControl.Styles>
         <Style Selector="Button.emoji-choice">
             <Setter Property="Width"
-                    Value="36" />
+                    Value="58" />
             <Setter Property="Height"
-                    Value="34" />
+                    Value="56" />
             <Setter Property="MinWidth"
                     Value="0" />
             <Setter Property="Margin"
-                    Value="2" />
+                    Value="3" />
             <Setter Property="Padding"
                     Value="0" />
             <Setter Property="FontSize"
-                    Value="18" />
+                    Value="46" />
             <Setter Property="Background"
                     Value="#101A16" />
             <Setter Property="BorderBrush"
@@ -36,8 +36,8 @@
         </Style>
     </UserControl.Styles>
 
-    <Border Width="336"
-            MaxHeight="330"
+    <Border Width="400"
+            MaxHeight="450"
             Padding="14"
             Background="{StaticResource CriptySurfaceBrush}"
             BorderBrush="#674C72"
@@ -67,8 +67,21 @@
                            LetterSpacing="0.9"
                            Foreground="{StaticResource CriptyAccentBrush}" />
 
-                <WrapPanel x:Name="FacesPanel"
-                           Orientation="Horizontal" />
+                <ItemsControl x:Name="FacesItems">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="x:String">
+                            <Button Classes="emoji-choice"
+                                    Content="{Binding}"
+                                    Click="InsertEmoji" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
 
                 <TextBlock Text="GESTURES &amp; MARKS"
                            FontSize="8"
@@ -76,8 +89,21 @@
                            LetterSpacing="0.9"
                            Foreground="{StaticResource CriptyAccentBrush}" />
 
-                <WrapPanel x:Name="GesturesPanel"
-                           Orientation="Horizontal" />
+                <ItemsControl x:Name="GesturesItems">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="x:String">
+                            <Button Classes="emoji-choice"
+                                    Content="{Binding}"
+                                    Click="InsertEmoji" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
 
                 <TextBlock Text="OBJECTS &amp; IDEAS"
                            FontSize="8"
@@ -85,8 +111,21 @@
                            LetterSpacing="0.9"
                            Foreground="{StaticResource CriptyAccentBrush}" />
 
-                <WrapPanel x:Name="ObjectsPanel"
-                           Orientation="Horizontal" />
+                <ItemsControl x:Name="ObjectsItems">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="x:String">
+                            <Button Classes="emoji-choice"
+                                    Content="{Binding}"
+                                    Click="InsertEmoji" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
             </StackPanel>
         </ScrollViewer>
     </Border>

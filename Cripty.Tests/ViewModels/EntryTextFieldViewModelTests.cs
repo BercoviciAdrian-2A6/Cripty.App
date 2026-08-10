@@ -55,6 +55,86 @@ public sealed class EntryTextFieldViewModelTests
                 parameter: null));
     }
 
+    [TestMethod]
+    [DataRow("Notes")]
+    [DataRow("[None]")]
+    [DataRow("Custom field")]
+    public void FreeFormField_SupportsRichTextEditing(
+        string fieldName)
+    {
+        EntryTextFieldViewModel field =
+            CreateField(
+                fieldName,
+                "Existing text");
+
+        Assert.IsTrue(
+            field.SupportsRichTextEditing);
+    }
+
+    [TestMethod]
+    [DataRow("Username")]
+    [DataRow("Password")]
+    [DataRow("Email")]
+    [DataRow("Website")]
+    [DataRow("TOTP")]
+    public void StructuredField_DoesNotSupportRichTextEditing(
+        string fieldName)
+    {
+        EntryTextFieldViewModel field =
+            CreateField(
+                fieldName,
+                "Existing text");
+
+        Assert.IsFalse(
+            field.SupportsRichTextEditing);
+    }
+
+    [TestMethod]
+    public void InsertTextAtCaret_PreservesExistingText()
+    {
+        EntryTextFieldViewModel field =
+            CreateField(
+                "Notes",
+                "Hello world");
+
+        field.CaretIndex = 5;
+        field.InsertTextAtCaret(
+            "😀");
+
+        Assert.AreEqual(
+            "Hello😀 world",
+            field.Text);
+
+        Assert.AreEqual(
+            7,
+            field.CaretIndex);
+    }
+
+    [TestMethod]
+    public void InsertTextAtCaret_ExpandsCollapsedFreeFormField()
+    {
+        EntryTextFieldViewModel field =
+            CreateField(
+                "Notes",
+                "Text");
+
+        field.ToggleContentCommand.Execute(
+            parameter: null);
+
+        Assert.IsFalse(
+            field.IsContentExpanded);
+
+        field.InsertTextAtCaret(
+            "⭐");
+
+        Assert.IsTrue(
+            field.IsContentExpanded);
+
+        Assert.AreEqual(
+            "Text⭐",
+            field.Text);
+    }
+
     private static EntryTextFieldViewModel CreateField(
         string name,
         string text)

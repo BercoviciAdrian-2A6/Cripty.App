@@ -1170,6 +1170,7 @@ public partial class EntryTextFieldViewModel :
 
         Name = name;
         Text = text;
+        CaretIndex = text.Length;
 
         EntryFieldPresetViewModel? preset =
             EntryFieldPresetViewModel.FindByFieldName(
@@ -1196,6 +1197,13 @@ public partial class EntryTextFieldViewModel :
         get;
         set;
     } = string.Empty;
+
+    [ObservableProperty]
+    public partial int CaretIndex
+    {
+        get;
+        set;
+    }
 
     [ObservableProperty]
     public partial string PositionText
@@ -1277,6 +1285,49 @@ public partial class EntryTextFieldViewModel :
                 Name)?.Key,
             EntryFieldPresetViewModel.Totp.Key,
             StringComparison.Ordinal);
+
+    public bool SupportsRichTextEditing
+    {
+        get
+        {
+            EntryFieldPresetViewModel? preset =
+                EntryFieldPresetViewModel.FindByFieldName(
+                    Name);
+
+            return preset is null ||
+                string.Equals(
+                    preset.Key,
+                    EntryFieldPresetViewModel.None.Key,
+                    StringComparison.Ordinal) ||
+                string.Equals(
+                    preset.Key,
+                    EntryFieldPresetViewModel.Notes.Key,
+                    StringComparison.Ordinal);
+        }
+    }
+
+    public void InsertTextAtCaret(
+        string value)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(
+            value);
+
+        if (!SupportsRichTextEditing)
+        {
+            return;
+        }
+
+        int insertionIndex = Math.Clamp(
+            CaretIndex,
+            0,
+            Text.Length);
+
+        IsContentExpanded = true;
+        Text = Text.Insert(
+            insertionIndex,
+            value);
+        CaretIndex = insertionIndex + value.Length;
+    }
 
     [RelayCommand]
     private void ToggleContent()
@@ -1388,6 +1439,9 @@ public partial class EntryTextFieldViewModel :
         OnPropertyChanged(
             nameof(IsTotpField));
 
+        OnPropertyChanged(
+            nameof(SupportsRichTextEditing));
+
         OpenPasswordGeneratorCommand
             .NotifyCanExecuteChanged();
 
@@ -1422,6 +1476,11 @@ public partial class EntryTextFieldViewModel :
     partial void OnTextChanged(
         string value)
     {
+        if (CaretIndex > value.Length)
+        {
+            CaretIndex = value.Length;
+        }
+
         OpenPasswordInspectorCommand
             .NotifyCanExecuteChanged();
 
@@ -1545,6 +1604,14 @@ public sealed class EntryFieldPresetViewModel
             "TOTP",
             collapseContentByDefault: true);
 
+    public static EntryFieldPresetViewModel Notes
+    { get; } =
+        new(
+            "notes",
+            "NOTES",
+            "Notes",
+            collapseContentByDefault: false);
+
     public static IReadOnlyList<
         EntryFieldPresetViewModel> All
     { get; } =
@@ -1556,11 +1623,7 @@ public sealed class EntryFieldPresetViewModel
             new("email", "EMAIL", "Email"),
             new("website", "WEBSITE", "Website"),
             Totp,
-            new(
-                "notes",
-                "NOTES",
-                "Notes",
-                collapseContentByDefault: false)
+            Notes
         ];
 
     public static EntryFieldPresetViewModel?

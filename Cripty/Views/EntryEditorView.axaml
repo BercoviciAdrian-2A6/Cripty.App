@@ -175,8 +175,10 @@
         <Style Selector="Button.field-inspect">
             <Setter Property="Height"
                     Value="28" />
+            <Setter Property="Width"
+                    Value="72" />
             <Setter Property="MinWidth"
-                    Value="104" />
+                    Value="0" />
             <Setter Property="Padding"
                     Value="9,0" />
             <Setter Property="HorizontalContentAlignment"
@@ -205,6 +207,41 @@
                     Value="#21404A" />
             <Setter Property="BorderBrush"
                     Value="#56838C" />
+        </Style>
+
+        <Style Selector="Button.field-emoji">
+            <Setter Property="Height"
+                    Value="28" />
+            <Setter Property="MinWidth"
+                    Value="62" />
+            <Setter Property="Padding"
+                    Value="9,0" />
+            <Setter Property="HorizontalContentAlignment"
+                    Value="Center" />
+            <Setter Property="VerticalContentAlignment"
+                    Value="Center" />
+            <Setter Property="Background"
+                    Value="#31243A" />
+            <Setter Property="Foreground"
+                    Value="#D7BEDF" />
+            <Setter Property="BorderBrush"
+                    Value="#674C72" />
+        </Style>
+
+        <Style Selector="Button.field-emoji /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Padding"
+                    Value="0" />
+            <Setter Property="HorizontalContentAlignment"
+                    Value="Center" />
+            <Setter Property="VerticalContentAlignment"
+                    Value="Center" />
+        </Style>
+
+        <Style Selector="Button.field-emoji:pointerover">
+            <Setter Property="Background"
+                    Value="#422E4C" />
+            <Setter Property="BorderBrush"
+                    Value="#896394" />
         </Style>
 
         <Style Selector="Button.field-totp">
@@ -726,7 +763,7 @@
                                     CornerRadius="4">
 
                                 <StackPanel Spacing="11">
-                                    <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
+                                    <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
                                         <StackPanel Spacing="4">
                                             <TextBlock Text="{Binding PositionText}"
                                                        FontSize="8"
@@ -804,6 +841,24 @@
                                         </Button>
 
                                         <Button Grid.Column="5"
+                                                Classes="field-emoji"
+                                                IsVisible="{Binding SupportsRichTextEditing}"
+                                                Margin="0,0,8,0"
+                                                ToolTip.Tip="Insert emoji at the current caret position">
+
+                                            <Button.Flyout>
+                                                <Flyout>
+                                                    <views:EmojiPickerView DataContext="{Binding}" />
+                                                </Flyout>
+                                            </Button.Flyout>
+
+                                            <TextBlock Text="EMOJI"
+                                                       FontSize="8"
+                                                       FontWeight="SemiBold"
+                                                       LetterSpacing="0.7" />
+                                        </Button>
+
+                                        <Button Grid.Column="6"
                                                 Classes="field-copy"
                                                 Click="CopyFieldContent"
                                                 Margin="0,0,8,0"
@@ -815,7 +870,7 @@
                                                        LetterSpacing="0.7" />
                                         </Button>
 
-                                        <Button Grid.Column="6"
+                                        <Button Grid.Column="7"
                                                 Classes="field-arrow"
                                                 Command="{Binding MoveUpCommand}"
                                                 Margin="0,0,6,0"
@@ -826,7 +881,7 @@
                                                        FontWeight="SemiBold" />
                                         </Button>
 
-                                        <Button Grid.Column="7"
+                                        <Button Grid.Column="8"
                                                 Classes="field-arrow"
                                                 Command="{Binding MoveDownCommand}"
                                                 Margin="0,0,8,0"
@@ -837,7 +892,7 @@
                                                        FontWeight="SemiBold" />
                                         </Button>
 
-                                        <Button Grid.Column="8"
+                                        <Button Grid.Column="9"
                                                 Classes="danger"
                                                 Command="{Binding RemoveCommand}"
                                                 ToolTip.Tip="Remove field (staged until SAVE)">
@@ -873,9 +928,11 @@
                                                    Foreground="{StaticResource CriptyTextMutedBrush}" />
 
                                         <TextBox Text="{Binding Text, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                 CaretIndex="{Binding CaretIndex, Mode=TwoWay}"
                                                  MinHeight="42"
                                                  VerticalAlignment="Top"
                                                  AcceptsReturn="True"
+                                                 AcceptsTab="{Binding SupportsRichTextEditing}"
                                                  TextWrapping="Wrap"
                                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                                  ScrollViewer.VerticalScrollBarVisibility="Disabled"

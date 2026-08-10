@@ -1,0 +1,93 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Cripty.ViewModels"
+             x:Class="Cripty.Views.EmojiPickerView"
+             x:DataType="vm:EntryTextFieldViewModel">
+
+    <UserControl.Styles>
+        <Style Selector="Button.emoji-choice">
+            <Setter Property="Width"
+                    Value="36" />
+            <Setter Property="Height"
+                    Value="34" />
+            <Setter Property="MinWidth"
+                    Value="0" />
+            <Setter Property="Margin"
+                    Value="2" />
+            <Setter Property="Padding"
+                    Value="0" />
+            <Setter Property="FontSize"
+                    Value="18" />
+            <Setter Property="Background"
+                    Value="#101A16" />
+            <Setter Property="BorderBrush"
+                    Value="#294035" />
+            <Setter Property="HorizontalContentAlignment"
+                    Value="Center" />
+            <Setter Property="VerticalContentAlignment"
+                    Value="Center" />
+        </Style>
+
+        <Style Selector="Button.emoji-choice:pointerover">
+            <Setter Property="Background"
+                    Value="#25372E" />
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource CriptyAccentBrush}" />
+        </Style>
+    </UserControl.Styles>
+
+    <Border Width="336"
+            MaxHeight="330"
+            Padding="14"
+            Background="{StaticResource CriptySurfaceBrush}"
+            BorderBrush="#674C72"
+            BorderThickness="1"
+            CornerRadius="4">
+
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                      VerticalScrollBarVisibility="Auto">
+
+            <StackPanel Spacing="10">
+                <StackPanel Spacing="3">
+                    <TextBlock Text="INSERT EMOJI"
+                               FontSize="11"
+                               FontWeight="SemiBold"
+                               LetterSpacing="1"
+                               Foreground="#D7BEDF" />
+
+                    <TextBlock Text="Inserted at the caret; existing text is preserved."
+                               FontSize="9"
+                               Foreground="{StaticResource CriptyTextMutedBrush}"
+                               TextWrapping="Wrap" />
+                </StackPanel>
+
+                <TextBlock Text="FACES &amp; MOOD"
+                           FontSize="8"
+                           FontWeight="SemiBold"
+                           LetterSpacing="0.9"
+                           Foreground="{StaticResource CriptyAccentBrush}" />
+
+                <WrapPanel x:Name="FacesPanel"
+                           Orientation="Horizontal" />
+
+                <TextBlock Text="GESTURES &amp; MARKS"
+                           FontSize="8"
+                           FontWeight="SemiBold"
+                           LetterSpacing="0.9"
+                           Foreground="{StaticResource CriptyAccentBrush}" />
+
+                <WrapPanel x:Name="GesturesPanel"
+                           Orientation="Horizontal" />
+
+                <TextBlock Text="OBJECTS &amp; IDEAS"
+                           FontSize="8"
+                           FontWeight="SemiBold"
+                           LetterSpacing="0.9"
+                           Foreground="{StaticResource CriptyAccentBrush}" />
+
+                <WrapPanel x:Name="ObjectsPanel"
+                           Orientation="Horizontal" />
+            </StackPanel>
+        </ScrollViewer>
+    </Border>
+</UserControl>

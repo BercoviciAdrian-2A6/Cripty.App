@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Cripty.ViewModels;
@@ -39,5 +40,47 @@ public partial class EntryEditorView : UserControl
             Debug.WriteLine(
                 $"Could not copy field content: {exception}");
         }
+    }
+
+    private void HandleFormattedTextKeyDown(
+        object? sender,
+        KeyEventArgs eventArgs)
+    {
+        if (sender is not TextBox
+            {
+                DataContext:
+                    EntryTextFieldViewModel field
+            } textBox ||
+            !eventArgs.KeyModifiers.HasFlag(
+                KeyModifiers.Control))
+        {
+            return;
+        }
+
+        field.SelectionStart =
+            textBox.SelectionStart;
+
+        field.SelectionEnd =
+            textBox.SelectionEnd;
+
+        switch (eventArgs.Key)
+        {
+            case Key.B:
+                field.ApplyBoldFormattingCommand.Execute(
+                    parameter: null);
+                break;
+            case Key.I:
+                field.ApplyItalicFormattingCommand.Execute(
+                    parameter: null);
+                break;
+            case Key.U:
+                field.ApplyUnderlineFormattingCommand.Execute(
+                    parameter: null);
+                break;
+            default:
+                return;
+        }
+
+        eventArgs.Handled = true;
     }
 }

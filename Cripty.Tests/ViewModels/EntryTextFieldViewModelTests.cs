@@ -135,15 +135,122 @@ public sealed class EntryTextFieldViewModelTests
             field.Text);
     }
 
+    [TestMethod]
+    public void NonEmptyFreeFormField_StartsInReadMode()
+    {
+        EntryTextFieldViewModel field =
+            CreateField(
+                "Notes",
+                "# Existing note");
+
+        Assert.IsTrue(
+            field.IsFormattedTextPreviewVisible);
+
+        Assert.IsFalse(
+            field.IsFormattingEditorVisible);
+    }
+
+    [TestMethod]
+    public void EmptyFreeFormField_StartsInEditMode()
+    {
+        EntryTextFieldViewModel field =
+            CreateField(
+                "[None]",
+                string.Empty);
+
+        Assert.IsTrue(
+            field.IsFormattingEditorVisible);
+
+        Assert.IsFalse(
+            field.IsFormattedTextPreviewVisible);
+    }
+
+    [TestMethod]
+    public void ReadEditModeChanges_DoNotMarkFieldContentChanged()
+    {
+        int changeCount = 0;
+
+        EntryTextFieldViewModel field =
+            CreateField(
+                "Notes",
+                "Text",
+                () => changeCount++);
+
+        field.ShowFormattingEditorCommand.Execute(
+            parameter: null);
+
+        field.ShowFormattingPreviewCommand.Execute(
+            parameter: null);
+
+        Assert.AreEqual(
+            0,
+            changeCount);
+    }
+
+    [TestMethod]
+    public void FormattingCommand_UsesSelectionAndChangesStoredString()
+    {
+        int changeCount = 0;
+
+        EntryTextFieldViewModel field =
+            CreateField(
+                "Custom field",
+                "Make this bold",
+                () => changeCount++);
+
+        field.ShowFormattingEditorCommand.Execute(
+            parameter: null);
+
+        field.SelectionStart = 5;
+        field.SelectionEnd = 9;
+
+        field.ApplyBoldFormattingCommand.Execute(
+            parameter: null);
+
+        Assert.AreEqual(
+            "Make **this** bold",
+            field.Text);
+
+        Assert.AreEqual(
+            1,
+            changeCount);
+
+        Assert.IsTrue(
+            field.IsFormattingEditorVisible);
+    }
+
+    [TestMethod]
+    public void StructuredField_DisablesFormattingCommands()
+    {
+        EntryTextFieldViewModel field =
+            CreateField(
+                "Password",
+                "secret");
+
+        Assert.IsFalse(
+            field.ShowFormattingEditorCommand
+                .CanExecute(
+                    parameter: null));
+
+        Assert.IsFalse(
+            field.ApplyBoldFormattingCommand
+                .CanExecute(
+                    parameter: null));
+
+        Assert.IsTrue(
+            field.IsPlainTextEditorVisible);
+    }
+
     private static EntryTextFieldViewModel CreateField(
         string name,
-        string text)
+        string text,
+        Action? changed = null)
     {
         return new EntryTextFieldViewModel(
             Guid.NewGuid(),
             name,
             text,
-            () => { },
+            changed ?? (() => { }),
             _ => { },
             _ => { },
             _ => { },

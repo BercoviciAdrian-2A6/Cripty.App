@@ -1,0 +1,16 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Cripty.Views.FormattedTextPreviewView"
+             HorizontalAlignment="Stretch">
+
+    <Border MinHeight="54"
+            Padding="14,12"
+            Background="#091510"
+            BorderBrush="#294035"
+            BorderThickness="1"
+            CornerRadius="3">
+
+        <StackPanel x:Name="PreviewPanel"
+                    Spacing="4" />
+    </Border>
+</UserControl>

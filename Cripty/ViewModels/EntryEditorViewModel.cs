@@ -11,6 +11,7 @@ using Cripty.Core.Entries;
 using Cripty.Core.Vaults;
 using Cripty.Cryptography.OneTimePasswords;
 using Cripty.Cryptography.Passwords;
+using Cripty.TextFormatting;
 
 namespace Cripty.ViewModels;
 
@@ -1171,6 +1172,8 @@ public partial class EntryTextFieldViewModel :
         Name = name;
         Text = text;
         CaretIndex = text.Length;
+        SelectionStart = text.Length;
+        SelectionEnd = text.Length;
 
         EntryFieldPresetViewModel? preset =
             EntryFieldPresetViewModel.FindByFieldName(
@@ -1178,6 +1181,10 @@ public partial class EntryTextFieldViewModel :
 
         IsContentExpanded =
             preset?.CollapseContentByDefault != true;
+
+        IsFormattingPreviewVisible =
+            SupportsRichTextEditing &&
+            !string.IsNullOrWhiteSpace(text);
 
         _isInitializing = false;
     }
@@ -1200,6 +1207,20 @@ public partial class EntryTextFieldViewModel :
 
     [ObservableProperty]
     public partial int CaretIndex
+    {
+        get;
+        set;
+    }
+
+    [ObservableProperty]
+    public partial int SelectionStart
+    {
+        get;
+        set;
+    }
+
+    [ObservableProperty]
+    public partial int SelectionEnd
     {
         get;
         set;
@@ -1235,6 +1256,13 @@ public partial class EntryTextFieldViewModel :
 
     [ObservableProperty]
     public partial bool IsContentExpanded
+    {
+        get;
+        private set;
+    }
+
+    [ObservableProperty]
+    public partial bool IsFormattingPreviewVisible
     {
         get;
         private set;
@@ -1306,6 +1334,17 @@ public partial class EntryTextFieldViewModel :
         }
     }
 
+    public bool IsFormattingEditorVisible =>
+        SupportsRichTextEditing &&
+        !IsFormattingPreviewVisible;
+
+    public bool IsPlainTextEditorVisible =>
+        !SupportsRichTextEditing;
+
+    public bool IsFormattedTextPreviewVisible =>
+        SupportsRichTextEditing &&
+        IsFormattingPreviewVisible;
+
     public void InsertTextAtCaret(
         string value)
     {
@@ -1323,10 +1362,129 @@ public partial class EntryTextFieldViewModel :
             Text.Length);
 
         IsContentExpanded = true;
+        IsFormattingPreviewVisible = false;
         Text = Text.Insert(
             insertionIndex,
             value);
         CaretIndex = insertionIndex + value.Length;
+        SelectionStart = CaretIndex;
+        SelectionEnd = CaretIndex;
+    }
+
+    private bool CanUseTextFormatting()
+    {
+        return SupportsRichTextEditing;
+    }
+
+    [RelayCommand(
+        CanExecute = nameof(CanUseTextFormatting))]
+    private void ShowFormattingEditor()
+    {
+        IsContentExpanded = true;
+        IsFormattingPreviewVisible = false;
+    }
+
+    [RelayCommand(
+        CanExecute = nameof(CanUseTextFormatting))]
+    private void ShowFormattingPreview()
+    {
+        IsContentExpanded = true;
+        IsFormattingPreviewVisible = true;
+    }
+
+    [RelayCommand(
+        CanExecute = nameof(CanUseTextFormatting))]
+    private void ApplyBoldFormatting()
+    {
+        ApplyFormatting(
+            TextFormattingAction.Bold);
+    }
+
+    [RelayCommand(
+        CanExecute = nameof(CanUseTextFormatting))]
+    private void ApplyItalicFormatting()
+    {
+        ApplyFormatting(
+            TextFormattingAction.Italic);
+    }
+
+    [RelayCommand(
+        CanExecute = nameof(CanUseTextFormatting))]
+    private void ApplyUnderlineFormatting()
+    {
+        ApplyFormatting(
+            TextFormattingAction.Underline);
+    }
+
+    [RelayCommand(
+        CanExecute = nameof(CanUseTextFormatting))]
+    private void ApplyTitleFormatting()
+    {
+        ApplyFormatting(
+            TextFormattingAction.Title);
+    }
+
+    [RelayCommand(
+        CanExecute = nameof(CanUseTextFormatting))]
+    private void ApplySubtitleFormatting()
+    {
+        ApplyFormatting(
+            TextFormattingAction.Subtitle);
+    }
+
+    [RelayCommand(
+        CanExecute = nameof(CanUseTextFormatting))]
+    private void ApplyBulletListFormatting()
+    {
+        ApplyFormatting(
+            TextFormattingAction.BulletList);
+    }
+
+    [RelayCommand(
+        CanExecute = nameof(CanUseTextFormatting))]
+    private void ApplyNumberedListFormatting()
+    {
+        ApplyFormatting(
+            TextFormattingAction.NumberedList);
+    }
+
+    [RelayCommand(
+        CanExecute = nameof(CanUseTextFormatting))]
+    private void InsertDivider()
+    {
+        ApplyFormatting(
+            TextFormattingAction.Divider);
+    }
+
+    [RelayCommand(
+        CanExecute = nameof(CanUseTextFormatting))]
+    private void ClearTextFormatting()
+    {
+        ApplyFormatting(
+            TextFormattingAction.Clear);
+    }
+
+    private void ApplyFormatting(
+        TextFormattingAction action)
+    {
+        if (!SupportsRichTextEditing)
+        {
+            return;
+        }
+
+        TextFormattingEdit edit =
+            LimitedMarkdownFormatter.Apply(
+                Text,
+                SelectionStart,
+                SelectionEnd,
+                action);
+
+        IsContentExpanded = true;
+        IsFormattingPreviewVisible = false;
+        Text = edit.Text;
+        SelectionStart = edit.SelectionStart;
+        SelectionEnd = edit.SelectionEnd;
+        CaretIndex = edit.SelectionEnd;
     }
 
     [RelayCommand]
@@ -1442,6 +1600,48 @@ public partial class EntryTextFieldViewModel :
         OnPropertyChanged(
             nameof(SupportsRichTextEditing));
 
+        OnPropertyChanged(
+            nameof(IsFormattingEditorVisible));
+
+        OnPropertyChanged(
+            nameof(IsPlainTextEditorVisible));
+
+        OnPropertyChanged(
+            nameof(IsFormattedTextPreviewVisible));
+
+        ShowFormattingEditorCommand
+            .NotifyCanExecuteChanged();
+
+        ShowFormattingPreviewCommand
+            .NotifyCanExecuteChanged();
+
+        ApplyBoldFormattingCommand
+            .NotifyCanExecuteChanged();
+
+        ApplyItalicFormattingCommand
+            .NotifyCanExecuteChanged();
+
+        ApplyUnderlineFormattingCommand
+            .NotifyCanExecuteChanged();
+
+        ApplyTitleFormattingCommand
+            .NotifyCanExecuteChanged();
+
+        ApplySubtitleFormattingCommand
+            .NotifyCanExecuteChanged();
+
+        ApplyBulletListFormattingCommand
+            .NotifyCanExecuteChanged();
+
+        ApplyNumberedListFormattingCommand
+            .NotifyCanExecuteChanged();
+
+        InsertDividerCommand
+            .NotifyCanExecuteChanged();
+
+        ClearTextFormattingCommand
+            .NotifyCanExecuteChanged();
+
         OpenPasswordGeneratorCommand
             .NotifyCanExecuteChanged();
 
@@ -1463,6 +1663,16 @@ public partial class EntryTextFieldViewModel :
         }
     }
 
+    partial void OnIsFormattingPreviewVisibleChanged(
+        bool value)
+    {
+        OnPropertyChanged(
+            nameof(IsFormattingEditorVisible));
+
+        OnPropertyChanged(
+            nameof(IsFormattedTextPreviewVisible));
+    }
+
     partial void OnIsContentExpandedChanged(
         bool value)
     {
@@ -1479,6 +1689,16 @@ public partial class EntryTextFieldViewModel :
         if (CaretIndex > value.Length)
         {
             CaretIndex = value.Length;
+        }
+
+        if (SelectionStart > value.Length)
+        {
+            SelectionStart = value.Length;
+        }
+
+        if (SelectionEnd > value.Length)
+        {
+            SelectionEnd = value.Length;
         }
 
         OpenPasswordInspectorCommand

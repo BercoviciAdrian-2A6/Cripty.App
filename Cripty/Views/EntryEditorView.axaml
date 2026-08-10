@@ -244,6 +244,82 @@
                     Value="#896394" />
         </Style>
 
+        <Style Selector="Button.format-mode">
+            <Setter Property="Height"
+                    Value="27" />
+            <Setter Property="MinWidth"
+                    Value="54" />
+            <Setter Property="Padding"
+                    Value="10,0" />
+            <Setter Property="HorizontalContentAlignment"
+                    Value="Center" />
+            <Setter Property="VerticalContentAlignment"
+                    Value="Center" />
+            <Setter Property="Background"
+                    Value="#111E18" />
+            <Setter Property="Foreground"
+                    Value="#819087" />
+            <Setter Property="BorderBrush"
+                    Value="#304139" />
+        </Style>
+
+        <Style Selector="Button.format-mode:pointerover">
+            <Setter Property="Background"
+                    Value="#1A2B22" />
+            <Setter Property="Foreground"
+                    Value="#CFDDD3" />
+            <Setter Property="BorderBrush"
+                    Value="#53685B" />
+        </Style>
+
+        <Style Selector="Button.format-mode.selected">
+            <Setter Property="Background"
+                    Value="#29431F" />
+            <Setter Property="Foreground"
+                    Value="#D5F1C0" />
+            <Setter Property="BorderBrush"
+                    Value="#6B8D54" />
+        </Style>
+
+        <Style Selector="Button.format-tool">
+            <Setter Property="Height"
+                    Value="28" />
+            <Setter Property="MinWidth"
+                    Value="34" />
+            <Setter Property="Margin"
+                    Value="0,0,6,6" />
+            <Setter Property="Padding"
+                    Value="9,0" />
+            <Setter Property="HorizontalContentAlignment"
+                    Value="Center" />
+            <Setter Property="VerticalContentAlignment"
+                    Value="Center" />
+            <Setter Property="Background"
+                    Value="#16221C" />
+            <Setter Property="Foreground"
+                    Value="#C6D1C9" />
+            <Setter Property="BorderBrush"
+                    Value="#3B4B41" />
+        </Style>
+
+        <Style Selector="Button.format-tool:pointerover">
+            <Setter Property="Background"
+                    Value="#25372D" />
+            <Setter Property="Foreground"
+                    Value="#E6F1E9" />
+            <Setter Property="BorderBrush"
+                    Value="#66806E" />
+        </Style>
+
+        <Style Selector="Button.format-tool.dangerous:pointerover">
+            <Setter Property="Background"
+                    Value="#3C281F" />
+            <Setter Property="Foreground"
+                    Value="#F0C2AA" />
+            <Setter Property="BorderBrush"
+                    Value="#8B5D49" />
+        </Style>
+
         <Style Selector="Button.field-totp">
             <Setter Property="Height"
                     Value="28" />
@@ -920,19 +996,168 @@
                                     </StackPanel>
 
                                     <StackPanel IsVisible="{Binding IsContentExpanded}"
-                                                Spacing="6">
-                                        <TextBlock Text="CONTENT"
-                                                   FontSize="8"
-                                                   FontWeight="SemiBold"
-                                                   LetterSpacing="1.1"
-                                                   Foreground="{StaticResource CriptyTextMutedBrush}" />
+                                                Spacing="7">
+                                        <Grid ColumnDefinitions="*,Auto"
+                                              MinHeight="27">
+                                            <TextBlock Text="CONTENT"
+                                                       VerticalAlignment="Center"
+                                                       FontSize="8"
+                                                       FontWeight="SemiBold"
+                                                       LetterSpacing="1.1"
+                                                       Foreground="{StaticResource CriptyTextMutedBrush}" />
 
-                                        <TextBox Text="{Binding Text, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                            <StackPanel Grid.Column="1"
+                                                        IsVisible="{Binding SupportsRichTextEditing}"
+                                                        Orientation="Horizontal"
+                                                        Spacing="6">
+                                                <Button Classes="format-mode"
+                                                        Classes.selected="{Binding IsFormattingEditorVisible}"
+                                                        Command="{Binding ShowFormattingEditorCommand}"
+                                                        ToolTip.Tip="Edit the Markdown source and use the formatting toolbar">
+                                                    <TextBlock Text="EDIT"
+                                                               FontSize="8"
+                                                               FontWeight="SemiBold"
+                                                               LetterSpacing="0.8" />
+                                                </Button>
+
+                                                <Button Classes="format-mode"
+                                                        Classes.selected="{Binding IsFormattedTextPreviewVisible}"
+                                                        Command="{Binding ShowFormattingPreviewCommand}"
+                                                        ToolTip.Tip="Read this field with formatting markers rendered">
+                                                    <TextBlock Text="READ"
+                                                               FontSize="8"
+                                                               FontWeight="SemiBold"
+                                                               LetterSpacing="0.8" />
+                                                </Button>
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <StackPanel IsVisible="{Binding IsFormattingEditorVisible}"
+                                                    Spacing="7">
+                                            <Border Padding="9,9,3,3"
+                                                    Background="#0C1712"
+                                                    BorderBrush="#304139"
+                                                    BorderThickness="1"
+                                                    CornerRadius="3">
+                                                <WrapPanel Orientation="Horizontal">
+                                                    <Button Classes="format-tool"
+                                                            Command="{Binding ApplyBoldFormattingCommand}"
+                                                            ToolTip.Tip="Bold the selection">
+                                                        <TextBlock Text="B"
+                                                                   FontSize="10"
+                                                                   FontWeight="Bold" />
+                                                    </Button>
+
+                                                    <Button Classes="format-tool"
+                                                            Command="{Binding ApplyItalicFormattingCommand}"
+                                                            ToolTip.Tip="Italicize the selection">
+                                                        <TextBlock Text="I"
+                                                                   FontSize="10"
+                                                                   FontStyle="Italic" />
+                                                    </Button>
+
+                                                    <Button Classes="format-tool"
+                                                            Command="{Binding ApplyUnderlineFormattingCommand}"
+                                                            ToolTip.Tip="Underline the selection">
+                                                        <TextBlock Text="U"
+                                                                   FontSize="10"
+                                                                   TextDecorations="Underline" />
+                                                    </Button>
+
+                                                    <Button Classes="format-tool"
+                                                            Command="{Binding ApplyTitleFormattingCommand}"
+                                                            ToolTip.Tip="Make the selected line or lines titles">
+                                                        <TextBlock Text="TITLE"
+                                                                   FontSize="8"
+                                                                   FontWeight="SemiBold"
+                                                                   LetterSpacing="0.5" />
+                                                    </Button>
+
+                                                    <Button Classes="format-tool"
+                                                            Command="{Binding ApplySubtitleFormattingCommand}"
+                                                            ToolTip.Tip="Make the selected line or lines subtitles">
+                                                        <TextBlock Text="SUBTITLE"
+                                                                   FontSize="8"
+                                                                   FontWeight="SemiBold"
+                                                                   LetterSpacing="0.4" />
+                                                    </Button>
+
+                                                    <Button Classes="format-tool"
+                                                            Command="{Binding ApplyBulletListFormattingCommand}"
+                                                            ToolTip.Tip="Toggle a bulleted list on the selected line or lines">
+                                                        <TextBlock Text="• LIST"
+                                                                   FontSize="8"
+                                                                   FontWeight="SemiBold"
+                                                                   LetterSpacing="0.4" />
+                                                    </Button>
+
+                                                    <Button Classes="format-tool"
+                                                            Command="{Binding ApplyNumberedListFormattingCommand}"
+                                                            ToolTip.Tip="Toggle a numbered list on the selected line or lines">
+                                                        <TextBlock Text="1. LIST"
+                                                                   FontSize="8"
+                                                                   FontWeight="SemiBold"
+                                                                   LetterSpacing="0.4" />
+                                                    </Button>
+
+                                                    <Button Classes="format-tool"
+                                                            Command="{Binding InsertDividerCommand}"
+                                                            ToolTip.Tip="Insert a horizontal divider on its own line">
+                                                        <TextBlock Text="DIVIDER"
+                                                                   FontSize="8"
+                                                                   FontWeight="SemiBold"
+                                                                   LetterSpacing="0.4" />
+                                                    </Button>
+
+                                                    <Button Classes="format-tool dangerous"
+                                                            Command="{Binding ClearTextFormattingCommand}"
+                                                            ToolTip.Tip="Clear formatting from the selection, or from the current line when nothing is selected">
+                                                        <TextBlock Text="CLEAR"
+                                                                   FontSize="8"
+                                                                   FontWeight="SemiBold"
+                                                                   LetterSpacing="0.4" />
+                                                    </Button>
+                                                </WrapPanel>
+                                            </Border>
+
+                                            <TextBox Text="{Binding Text, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                     CaretIndex="{Binding CaretIndex, Mode=TwoWay}"
+                                                     SelectionStart="{Binding SelectionStart, Mode=TwoWay}"
+                                                     SelectionEnd="{Binding SelectionEnd, Mode=TwoWay}"
+                                                     KeyDown="HandleFormattedTextKeyDown"
+                                                     MinHeight="92"
+                                                     VerticalAlignment="Top"
+                                                     AcceptsReturn="True"
+                                                     AcceptsTab="True"
+                                                     TextWrapping="Wrap"
+                                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                                     ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                                                     PlaceholderText="Enter text" />
+
+                                            <TextBlock Text="Formatting is stored as lightweight markers. Tab inserts indentation; switch to READ to hide the markers."
+                                                       FontSize="8"
+                                                       LineHeight="13"
+                                                       Foreground="{StaticResource CriptyTextMutedBrush}"
+                                                       TextWrapping="Wrap" />
+                                        </StackPanel>
+
+                                        <StackPanel IsVisible="{Binding IsFormattedTextPreviewVisible}"
+                                                    Spacing="6">
+                                            <views:FormattedTextPreviewView Text="{Binding Text}" />
+
+                                            <TextBlock Text="READ MODE · Raw HTML is displayed as text and never executed."
+                                                       FontSize="8"
+                                                       LetterSpacing="0.4"
+                                                       Foreground="{StaticResource CriptyTextMutedBrush}" />
+                                        </StackPanel>
+
+                                        <TextBox IsVisible="{Binding IsPlainTextEditorVisible}"
+                                                 Text="{Binding Text, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                  CaretIndex="{Binding CaretIndex, Mode=TwoWay}"
                                                  MinHeight="42"
                                                  VerticalAlignment="Top"
                                                  AcceptsReturn="True"
-                                                 AcceptsTab="{Binding SupportsRichTextEditing}"
+                                                 AcceptsTab="False"
                                                  TextWrapping="Wrap"
                                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                                  ScrollViewer.VerticalScrollBarVisibility="Disabled"

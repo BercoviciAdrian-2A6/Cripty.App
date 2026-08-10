@@ -7,17 +7,17 @@
     <UserControl.Styles>
         <Style Selector="Button.emoji-choice">
             <Setter Property="Width"
-                    Value="58" />
+                    Value="36" />
             <Setter Property="Height"
-                    Value="56" />
+                    Value="34" />
             <Setter Property="MinWidth"
                     Value="0" />
             <Setter Property="Margin"
-                    Value="3" />
+                    Value="2" />
             <Setter Property="Padding"
                     Value="0" />
             <Setter Property="FontSize"
-                    Value="46" />
+                    Value="18" />
             <Setter Property="Background"
                     Value="#101A16" />
             <Setter Property="BorderBrush"
@@ -36,8 +36,8 @@
         </Style>
     </UserControl.Styles>
 
-    <Border Width="400"
-            MaxHeight="450"
+    <Border Width="336"
+            MaxHeight="330"
             Padding="14"
             Background="{StaticResource CriptySurfaceBrush}"
             BorderBrush="#674C72"

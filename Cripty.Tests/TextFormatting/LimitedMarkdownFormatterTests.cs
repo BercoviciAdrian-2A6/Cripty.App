@@ -342,6 +342,79 @@ public sealed class LimitedMarkdownFormatterTests
     }
 
     [TestMethod]
+    public void Parse_ColorFormattingContinuesAcrossLineBreaks()
+    {
+        IReadOnlyList<FormattedTextBlock> blocks =
+            LimitedMarkdownFormatter.Parse(
+                "[[purple]]Avalonia Release build\nand compiled bindings pass.[[/purple]]\nPlain");
+
+        Assert.HasCount(
+            3,
+            blocks);
+
+        Assert.AreEqual(
+            "Avalonia Release build",
+            blocks[0].Inlines.Single().Text);
+        Assert.AreEqual(
+            FormattedTextColor.Purple,
+            blocks[0].Inlines.Single().Color);
+
+        Assert.AreEqual(
+            "and compiled bindings pass.",
+            blocks[1].Inlines.Single().Text);
+        Assert.AreEqual(
+            FormattedTextColor.Purple,
+            blocks[1].Inlines.Single().Color);
+
+        Assert.AreEqual(
+            FormattedTextColor.Default,
+            blocks[2].Inlines.Single().Color);
+    }
+
+    [TestMethod]
+    public void Parse_NestedColorAndSizeContinueAcrossLineBreaks()
+    {
+        IReadOnlyList<FormattedTextBlock> blocks =
+            LimitedMarkdownFormatter.Parse(
+                "[[blue]][[large]]First\nSecond[[/large]][[/blue]]");
+
+        Assert.HasCount(
+            2,
+            blocks);
+
+        foreach (FormattedTextBlock block in blocks)
+        {
+            FormattedTextInline inline =
+                block.Inlines.Single();
+
+            Assert.AreEqual(
+                FormattedTextColor.Blue,
+                inline.Color);
+            Assert.AreEqual(
+                FormattedTextSize.Large,
+                inline.Size);
+        }
+    }
+
+    [TestMethod]
+    public void ClearFormatting_RemovesColorAcrossLineBreaks()
+    {
+        const string marked =
+            "[[purple]]First\nSecond[[/purple]]";
+
+        TextFormattingEdit edit =
+            LimitedMarkdownFormatter.Apply(
+                marked,
+                0,
+                marked.Length,
+                TextFormattingAction.Clear);
+
+        Assert.AreEqual(
+            "First\nSecond",
+            edit.Text);
+    }
+
+    [TestMethod]
     public void ClearFormatting_RemovesColorAndSizeMarkers()
     {
         const string marked =

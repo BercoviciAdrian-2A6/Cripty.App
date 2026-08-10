@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using System.Globalization;
+using System.Text;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Documents;
@@ -11,6 +13,8 @@ namespace Cripty.Views;
 public partial class FormattedTextPreviewView :
     UserControl
 {
+    private const double EmojiScale = 3.5;
+
     public static readonly StyledProperty<string>
         TextProperty =
             AvaloniaProperty.Register<
@@ -187,7 +191,10 @@ public partial class FormattedTextPreviewView :
         TextBlock textBlock = new()
         {
             FontSize = fontSize,
-            LineHeight = lineHeight,
+            LineHeight = CalculateLineHeight(
+                inlines,
+                fontSize,
+                lineHeight),
             FontWeight = fontWeight,
             Foreground =
                 new SolidColorBrush(
@@ -198,42 +205,165 @@ public partial class FormattedTextPreviewView :
 
         foreach (FormattedTextInline inline in inlines)
         {
-            Run run = new(inline.Text)
+            foreach (EmojiTextSegment segment in
+                     SplitEmojiText(inline.Text))
             {
-                FontWeight = inline.IsBold
-                    ? FontWeight.Bold
-                    : FontWeight.Normal,
-                FontStyle = inline.IsItalic
-                    ? FontStyle.Italic
-                    : FontStyle.Normal,
-                TextDecorations = inline.IsUnderlined
-                    ? TextDecorations.Underline
-                    : null,
-                FontSize = inline.Size switch
+                Run run = new(segment.Text)
                 {
-                    FormattedTextSize.Small =>
-                        fontSize * 0.76,
-                    FormattedTextSize.Large =>
-                        fontSize * 1.36,
-                    _ => fontSize
+                    FontWeight = inline.IsBold
+                        ? FontWeight.Bold
+                        : FontWeight.Normal,
+                    FontStyle = inline.IsItalic
+                        ? FontStyle.Italic
+                        : FontStyle.Normal,
+                    TextDecorations = inline.IsUnderlined
+                        ? TextDecorations.Underline
+                        : null,
+                    FontSize = GetInlineFontSize(
+                        fontSize,
+                        inline.Size) *
+                        (segment.IsEmoji
+                            ? EmojiScale
+                            : 1)
+                };
+
+                string? inlineColor =
+                    GetInlineColor(inline.Color);
+
+                if (inlineColor is not null)
+                {
+                    run.Foreground =
+                        new SolidColorBrush(
+                            Color.Parse(inlineColor));
                 }
-            };
 
-            string? inlineColor =
-                GetInlineColor(inline.Color);
-
-            if (inlineColor is not null)
-            {
-                run.Foreground =
-                    new SolidColorBrush(
-                        Color.Parse(inlineColor));
+                textBlock.Inlines!.Add(run);
             }
-
-            textBlock.Inlines!.Add(run);
         }
 
         return textBlock;
     }
+
+    private static double CalculateLineHeight(
+        IReadOnlyList<FormattedTextInline> inlines,
+        double fontSize,
+        double minimumLineHeight)
+    {
+        double largestFontSize = fontSize;
+
+        foreach (FormattedTextInline inline in inlines)
+        {
+            double inlineFontSize = GetInlineFontSize(
+                fontSize,
+                inline.Size);
+
+            foreach (EmojiTextSegment segment in
+                     SplitEmojiText(inline.Text))
+            {
+                double segmentFontSize = inlineFontSize *
+                    (segment.IsEmoji
+                        ? EmojiScale
+                        : 1);
+
+                largestFontSize = System.Math.Max(
+                    largestFontSize,
+                    segmentFontSize);
+            }
+        }
+
+        return System.Math.Max(
+            minimumLineHeight,
+            largestFontSize * 1.15);
+    }
+
+    private static double GetInlineFontSize(
+        double fontSize,
+        FormattedTextSize size)
+    {
+        return size switch
+        {
+            FormattedTextSize.Small =>
+                fontSize * 0.76,
+            FormattedTextSize.Large =>
+                fontSize * 1.5,
+            _ => fontSize
+        };
+    }
+
+    private static IEnumerable<EmojiTextSegment>
+        SplitEmojiText(
+            string text)
+    {
+        TextElementEnumerator elements =
+            StringInfo.GetTextElementEnumerator(text);
+
+        StringBuilder segmentText = new();
+        bool? segmentIsEmoji = null;
+
+        while (elements.MoveNext())
+        {
+            string element =
+                elements.GetTextElement();
+
+            bool isEmoji = IsEmoji(element);
+
+            if (segmentIsEmoji is not null &&
+                segmentIsEmoji != isEmoji)
+            {
+                yield return new EmojiTextSegment(
+                    segmentText.ToString(),
+                    segmentIsEmoji.Value);
+
+                segmentText.Clear();
+            }
+
+            segmentText.Append(element);
+            segmentIsEmoji = isEmoji;
+        }
+
+        if (segmentText.Length > 0)
+        {
+            yield return new EmojiTextSegment(
+                segmentText.ToString(),
+                segmentIsEmoji!.Value);
+        }
+    }
+
+    private static bool IsEmoji(
+        string textElement)
+    {
+        bool hasEmojiPresentation = false;
+
+        foreach (Rune rune in textElement.EnumerateRunes())
+        {
+            int value = rune.Value;
+
+            if (value == 0xFE0F ||
+                value == 0x20E3 ||
+                IsEmojiBase(value))
+            {
+                hasEmojiPresentation = true;
+            }
+        }
+
+        return hasEmojiPresentation;
+    }
+
+    private static bool IsEmojiBase(
+        int value)
+    {
+        return value is >= 0x1F000 and <= 0x1FAFF ||
+            value is >= 0x2600 and <= 0x27BF ||
+            value is >= 0x2B00 and <= 0x2BFF ||
+            value is 0x00A9 or 0x00AE or 0x203C or
+                0x2049 or 0x2122 or 0x2139 or
+                0x3030 or 0x303D or 0x3297 or
+                0x3299;
+    }
+
+    private sealed record EmojiTextSegment(
+        string Text,
+        bool IsEmoji);
 
     private static string? GetInlineColor(
         FormattedTextColor color)

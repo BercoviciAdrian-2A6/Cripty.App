@@ -262,14 +262,15 @@ public static class LimitedMarkdownFormatter
     {
         ArgumentNullException.ThrowIfNull(text);
 
-        string[] lines = NormalizeLineEndings(text)
-            .Split('\n');
+        IReadOnlyList<PreparedTextLine> lines =
+            PrepareLinesForExtendedFormatting(text);
 
         List<FormattedTextBlock> blocks = [];
 
-        foreach (string line in lines)
+        foreach (PreparedTextLine preparedLine in lines)
         {
-            if (string.IsNullOrWhiteSpace(line))
+            if (string.IsNullOrWhiteSpace(
+                    preparedLine.OriginalText))
             {
                 blocks.Add(
                     new FormattedTextBlock(
@@ -277,6 +278,8 @@ public static class LimitedMarkdownFormatter
                         []));
                 continue;
             }
+
+            string line = preparedLine.FormattedText;
 
             string trimmed = line.Trim();
 
@@ -345,6 +348,115 @@ public static class LimitedMarkdownFormatter
         }
 
         return blocks;
+    }
+
+    private static IReadOnlyList<PreparedTextLine>
+        PrepareLinesForExtendedFormatting(
+            string text)
+    {
+        string[] lines = NormalizeLineEndings(text)
+            .Split('\n');
+
+        List<PreparedTextLine> preparedLines = [];
+        List<InlineMarkerDefinition> activeMarkers = [];
+
+        foreach (string line in lines)
+        {
+            StringBuilder formattedLine = new();
+
+            foreach (InlineMarkerDefinition marker in
+                     activeMarkers)
+            {
+                formattedLine.Append(
+                    marker.OpeningMarker);
+            }
+
+            TrackExtendedMarkers(
+                line,
+                formattedLine,
+                activeMarkers);
+
+            for (int index = activeMarkers.Count - 1;
+                 index >= 0;
+                 index--)
+            {
+                formattedLine.Append(
+                    activeMarkers[index]
+                        .ClosingMarker);
+            }
+
+            preparedLines.Add(
+                new PreparedTextLine(
+                    line,
+                    formattedLine.ToString()));
+        }
+
+        return preparedLines;
+    }
+
+    private static void TrackExtendedMarkers(
+        string line,
+        StringBuilder formattedLine,
+        List<InlineMarkerDefinition> activeMarkers)
+    {
+        for (int index = 0;
+             index < line.Length;)
+        {
+            if (line[index] == '\\' &&
+                index + 1 < line.Length)
+            {
+                formattedLine.Append(line[index]);
+                formattedLine.Append(line[index + 1]);
+                index += 2;
+                continue;
+            }
+
+            InlineMarkerDefinition? openingMarker =
+                ExtendedMarkers.FirstOrDefault(marker =>
+                    StartsWithAt(
+                        line,
+                        marker.OpeningMarker,
+                        index,
+                        line.Length));
+
+            if (openingMarker is not null)
+            {
+                formattedLine.Append(
+                    openingMarker.OpeningMarker);
+                activeMarkers.Add(openingMarker);
+                index += openingMarker.OpeningMarker.Length;
+                continue;
+            }
+
+            InlineMarkerDefinition? closingMarker =
+                ExtendedMarkers.FirstOrDefault(marker =>
+                    StartsWithAt(
+                        line,
+                        marker.ClosingMarker,
+                        index,
+                        line.Length));
+
+            if (closingMarker is not null)
+            {
+                formattedLine.Append(
+                    closingMarker.ClosingMarker);
+
+                int activeIndex =
+                    activeMarkers.FindLastIndex(marker =>
+                        marker == closingMarker);
+
+                if (activeIndex >= 0)
+                {
+                    activeMarkers.RemoveAt(activeIndex);
+                }
+
+                index += closingMarker.ClosingMarker.Length;
+                continue;
+            }
+
+            formattedLine.Append(line[index]);
+            index++;
+        }
     }
 
     public static string ToPlainText(
@@ -1242,36 +1354,41 @@ public static class LimitedMarkdownFormatter
     private static string StripFormatting(
         string text)
     {
-        string[] lines = NormalizeLineEndings(text)
-            .Split('\n');
+        IReadOnlyList<PreparedTextLine> lines =
+            PrepareLinesForExtendedFormatting(text);
+
+        string[] strippedLines =
+            new string[lines.Count];
 
         for (int index = 0;
-             index < lines.Length;
+             index < lines.Count;
              index++)
         {
+            string line = lines[index].FormattedText;
+
             string indentation =
-                ReadIndentation(lines[index]);
+                ReadIndentation(line);
 
             string content =
-                lines[index][indentation.Length..];
+                line[indentation.Length..];
 
             if (string.Equals(
                     content.Trim(),
                     "---",
                     StringComparison.Ordinal))
             {
-                lines[index] = string.Empty;
+                strippedLines[index] = string.Empty;
                 continue;
             }
 
             content = RemoveBlockPrefix(content);
 
-            lines[index] = indentation +
+            strippedLines[index] = indentation +
                 JoinInlineText(
                     ParseInlines(content));
         }
 
-        return string.Join('\n', lines);
+        return string.Join('\n', strippedLines);
     }
 
     private static (int Start, int End)
@@ -1375,6 +1492,10 @@ public static class LimitedMarkdownFormatter
         string ClosingMarker,
         FormattedTextColor? Color,
         FormattedTextSize? Size);
+
+    private sealed record PreparedTextLine(
+        string OriginalText,
+        string FormattedText);
 
     [Flags]
     private enum InlineStyle

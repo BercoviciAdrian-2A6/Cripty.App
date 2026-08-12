@@ -936,6 +936,52 @@ public sealed class VaultSessionTests
     }
 
     [TestMethod]
+    public async Task ExtendedLatinPasswords_CreateOpenAndChange_RoundTripExactly()
+    {
+        const string OriginalPassword =
+            "Pădure-Șarpe-Ärger-ß";
+
+        const string ChangedPassword =
+            "Țară-Über-Œuvre-Łódź";
+
+        await using (VaultSession created =
+                     await VaultSession.CreateAsync(
+                         _vaultDirectory,
+                         OriginalPassword,
+                         TestKdfParameters))
+        {
+            Assert.AreNotEqual(
+                Guid.Empty,
+                created.VaultId);
+        }
+
+        await using (VaultSession opened =
+                     await VaultSession.OpenAsync(
+                         _vaultDirectory,
+                         OriginalPassword))
+        {
+            await opened.ChangePasswordAsync(
+                ChangedPassword,
+                ChangedKdfParameters);
+        }
+
+        await Assert.ThrowsExactlyAsync<
+            CryptographicException>(
+                () => VaultSession.OpenAsync(
+                    _vaultDirectory,
+                    OriginalPassword));
+
+        await using VaultSession reopened =
+            await VaultSession.OpenAsync(
+                _vaultDirectory,
+                ChangedPassword);
+
+        AssertKdfParametersEqual(
+            ChangedKdfParameters,
+            reopened.PasswordKdfParameters);
+    }
+
+    [TestMethod]
     public async Task DisposeAsync_IsIdempotentAndRejectsFurtherUse()
     {
         VaultSession session =

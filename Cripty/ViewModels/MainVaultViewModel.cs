@@ -12,6 +12,7 @@ using Cripty.Application.Vaults;
 using Cripty.Core.Entries;
 using Cripty.Core.Vaults;
 using Cripty.Cryptography.Keys;
+using Cripty.Passwords;
 
 namespace Cripty.ViewModels;
 
@@ -274,6 +275,20 @@ public partial class MainVaultViewModel :
         get;
         set;
     } = string.Empty;
+
+    [ObservableProperty]
+    public partial int NewPasswordCaretIndex
+    {
+        get;
+        set;
+    }
+
+    [ObservableProperty]
+    public partial int ConfirmNewPasswordCaretIndex
+    {
+        get;
+        set;
+    }
 
     [ObservableProperty]
     public partial bool IsNewPasswordVisible
@@ -748,6 +763,11 @@ public partial class MainVaultViewModel :
     partial void OnNewPasswordChanged(
         string value)
     {
+        NewPasswordCaretIndex = Math.Clamp(
+            NewPasswordCaretIndex,
+            0,
+            value.Length);
+
         ClearPasswordChangeError();
 
         OnPropertyChanged(
@@ -759,12 +779,44 @@ public partial class MainVaultViewModel :
     partial void OnConfirmNewPasswordChanged(
         string value)
     {
+        ConfirmNewPasswordCaretIndex = Math.Clamp(
+            ConfirmNewPasswordCaretIndex,
+            0,
+            value.Length);
+
         ClearPasswordChangeError();
 
         OnPropertyChanged(
             nameof(ConfirmNewPasswordCharacterCountText));
 
         ConfirmPasswordChangeCommand.NotifyCanExecuteChanged();
+    }
+
+    public void InsertNewPasswordSpecialCharacter(
+        string character)
+    {
+        PasswordTextInsertionResult insertion =
+            PasswordTextInput.InsertAtCaret(
+                NewPassword,
+                NewPasswordCaretIndex,
+                character);
+
+        NewPassword = insertion.Text;
+        NewPasswordCaretIndex = insertion.CaretIndex;
+    }
+
+    public void InsertConfirmNewPasswordSpecialCharacter(
+        string character)
+    {
+        PasswordTextInsertionResult insertion =
+            PasswordTextInput.InsertAtCaret(
+                ConfirmNewPassword,
+                ConfirmNewPasswordCaretIndex,
+                character);
+
+        ConfirmNewPassword = insertion.Text;
+        ConfirmNewPasswordCaretIndex =
+            insertion.CaretIndex;
     }
 
     partial void OnIsNewPasswordVisibleChanged(
@@ -3135,6 +3187,10 @@ public partial class MainVaultViewModel :
     {
         NewPassword = string.Empty;
         ConfirmNewPassword = string.Empty;
+
+        NewPasswordCaretIndex = 0;
+        ConfirmNewPasswordCaretIndex = 0;
+
         IsNewPasswordVisible = false;
         IsConfirmNewPasswordVisible = false;
     }

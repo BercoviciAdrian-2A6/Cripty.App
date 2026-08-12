@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Cripty.ViewModels"
+             xmlns:views="using:Cripty.Views"
              x:Class="Cripty.Views.MainVaultView"
              x:DataType="vm:MainVaultViewModel"
              HorizontalAlignment="Stretch"
@@ -1171,12 +1172,29 @@
                                    LetterSpacing="1.3"
                                    Foreground="{StaticResource CriptyTextMutedBrush}" />
 
-                        <Grid ColumnDefinitions="*,Auto">
+                        <Grid ColumnDefinitions="*,Auto,Auto">
                             <TextBox Text="{Binding NewPassword, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     CaretIndex="{Binding NewPasswordCaretIndex, Mode=TwoWay}"
                                      PasswordChar="●"
                                      RevealPassword="{Binding IsNewPasswordVisible}" />
 
                             <Button Grid.Column="1"
+                                    Classes="ghost"
+                                    Margin="8,0,0,0"
+                                    MinWidth="42"
+                                    IsEnabled="{Binding !IsBusy}"
+                                    Content="Ă"
+                                    ToolTip.Tip="Insert an extended Latin letter at the caret">
+
+                                <Button.Flyout>
+                                    <Flyout>
+                                        <views:ExtendedLatinCharacterPickerView
+                                            CharacterSelected="InsertNewPasswordSpecialCharacter" />
+                                    </Flyout>
+                                </Button.Flyout>
+                            </Button>
+
+                            <Button Grid.Column="2"
                                     Classes="ghost"
                                     Margin="8,0,0,0"
                                     MinWidth="70"
@@ -1198,12 +1216,29 @@
                                    LetterSpacing="1.3"
                                    Foreground="{StaticResource CriptyTextMutedBrush}" />
 
-                        <Grid ColumnDefinitions="*,Auto">
+                        <Grid ColumnDefinitions="*,Auto,Auto">
                             <TextBox Text="{Binding ConfirmNewPassword, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     CaretIndex="{Binding ConfirmNewPasswordCaretIndex, Mode=TwoWay}"
                                      PasswordChar="●"
                                      RevealPassword="{Binding IsConfirmNewPasswordVisible}" />
 
                             <Button Grid.Column="1"
+                                    Classes="ghost"
+                                    Margin="8,0,0,0"
+                                    MinWidth="42"
+                                    IsEnabled="{Binding !IsBusy}"
+                                    Content="Ă"
+                                    ToolTip.Tip="Insert an extended Latin letter at the caret">
+
+                                <Button.Flyout>
+                                    <Flyout>
+                                        <views:ExtendedLatinCharacterPickerView
+                                            CharacterSelected="InsertConfirmNewPasswordSpecialCharacter" />
+                                    </Flyout>
+                                </Button.Flyout>
+                            </Button>
+
+                            <Button Grid.Column="2"
                                     Classes="ghost"
                                     Margin="8,0,0,0"
                                     MinWidth="70"

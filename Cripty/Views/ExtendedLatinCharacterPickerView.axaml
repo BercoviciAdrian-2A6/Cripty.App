@@ -1,0 +1,150 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:views="using:Cripty.Views"
+             x:Class="Cripty.Views.ExtendedLatinCharacterPickerView">
+
+    <UserControl.Styles>
+        <Style Selector="Button.letter-case">
+            <Setter Property="MinWidth"
+                    Value="0" />
+            <Setter Property="Padding"
+                    Value="12,7" />
+            <Setter Property="FontSize"
+                    Value="9" />
+            <Setter Property="FontWeight"
+                    Value="SemiBold" />
+            <Setter Property="LetterSpacing"
+                    Value="0.8" />
+            <Setter Property="Background"
+                    Value="#101A16" />
+            <Setter Property="BorderBrush"
+                    Value="#294035" />
+        </Style>
+
+        <Style Selector="Button.letter-case.selected">
+            <Setter Property="Foreground"
+                    Value="{StaticResource CriptyAccentBrush}" />
+            <Setter Property="Background"
+                    Value="{StaticResource CriptyAccentDarkBrush}" />
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource CriptyAccentBrush}" />
+        </Style>
+
+        <Style Selector="Button.extended-latin-choice">
+            <Setter Property="Width"
+                    Value="32" />
+            <Setter Property="Height"
+                    Value="30" />
+            <Setter Property="MinWidth"
+                    Value="0" />
+            <Setter Property="Margin"
+                    Value="2" />
+            <Setter Property="Padding"
+                    Value="0" />
+            <Setter Property="FontSize"
+                    Value="15" />
+            <Setter Property="Background"
+                    Value="#101A16" />
+            <Setter Property="BorderBrush"
+                    Value="#294035" />
+            <Setter Property="HorizontalContentAlignment"
+                    Value="Center" />
+            <Setter Property="VerticalContentAlignment"
+                    Value="Center" />
+        </Style>
+
+        <Style Selector="Button.extended-latin-choice:pointerover">
+            <Setter Property="Foreground"
+                    Value="{StaticResource CriptyAccentBrush}" />
+            <Setter Property="Background"
+                    Value="#25372E" />
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource CriptyAccentBrush}" />
+        </Style>
+    </UserControl.Styles>
+
+    <Border Width="472"
+            MaxHeight="480"
+            Padding="15"
+            Background="{StaticResource CriptySurfaceBrush}"
+            BorderBrush="{StaticResource CriptyBorderBrightBrush}"
+            BorderThickness="1"
+            CornerRadius="4">
+
+        <Grid RowDefinitions="Auto,Auto,*"
+              RowSpacing="12">
+            <StackPanel Grid.Row="0"
+                        Spacing="3">
+                <TextBlock Text="EXTENDED LATIN LETTERS"
+                           FontSize="11"
+                           FontWeight="SemiBold"
+                           LetterSpacing="1"
+                           Foreground="{StaticResource CriptyAccentBrush}" />
+
+                <TextBlock Text="Insert at the current caret. Normal typing and pasting still work."
+                           FontSize="9"
+                           Foreground="{StaticResource CriptyTextMutedBrush}"
+                           TextWrapping="Wrap" />
+            </StackPanel>
+
+            <StackPanel Grid.Row="1"
+                        Orientation="Horizontal"
+                        Spacing="7">
+                <Button x:Name="LowercaseButton"
+                        Classes="letter-case selected"
+                        Content="LOWERCASE"
+                        Click="ShowLowercase" />
+
+                <Button x:Name="UppercaseButton"
+                        Classes="letter-case"
+                        Content="UPPERCASE"
+                        Click="ShowUppercase" />
+            </StackPanel>
+
+            <ScrollViewer Grid.Row="2"
+                          HorizontalScrollBarVisibility="Disabled"
+                          VerticalScrollBarVisibility="Auto">
+
+                <ItemsControl x:Name="CharacterGroupsItems">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="views:ExtendedLatinCharacterGroupViewModel">
+                            <StackPanel Width="216"
+                                        Margin="0,0,5,10"
+                                        Spacing="3">
+                                <TextBlock Text="{Binding Label}"
+                                           Margin="2,0,0,0"
+                                           FontSize="8"
+                                           FontWeight="SemiBold"
+                                           LetterSpacing="0.9"
+                                           Foreground="{StaticResource CriptyTextMutedBrush}" />
+
+                                <ItemsControl ItemsSource="{Binding Characters}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel Orientation="Horizontal" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="views:ExtendedLatinCharacterChoiceViewModel">
+                                            <Button Classes="extended-latin-choice"
+                                                    Content="{Binding Character}"
+                                                    ToolTip.Tip="{Binding ToolTip}"
+                                                    Click="InsertCharacter" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </Grid>
+    </Border>
+</UserControl>

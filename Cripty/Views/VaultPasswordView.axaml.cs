@@ -9,4 +9,28 @@ public partial class VaultPasswordView :
     {
         InitializeComponent();
     }
+
+    private void InsertPasswordSpecialCharacter(
+        object? sender,
+        ExtendedLatinCharacterSelectedEventArgs eventArgs)
+    {
+        if (DataContext is
+            global::Cripty.ViewModels.VaultPasswordViewModel viewModel)
+        {
+            viewModel.InsertPasswordSpecialCharacter(
+                eventArgs.Character);
+        }
+    }
+
+    private void InsertConfirmPasswordSpecialCharacter(
+        object? sender,
+        ExtendedLatinCharacterSelectedEventArgs eventArgs)
+    {
+        if (DataContext is
+            global::Cripty.ViewModels.VaultPasswordViewModel viewModel)
+        {
+            viewModel.InsertConfirmPasswordSpecialCharacter(
+                eventArgs.Character);
+        }
+    }
 }

@@ -92,11 +92,13 @@
                         Spacing="7">
                 <Button x:Name="LowercaseButton"
                         Classes="letter-case selected"
+                        Focusable="False"
                         Content="LOWERCASE"
                         Click="ShowLowercase" />
 
                 <Button x:Name="UppercaseButton"
                         Classes="letter-case"
+                        Focusable="False"
                         Content="UPPERCASE"
                         Click="ShowUppercase" />
             </StackPanel>
@@ -134,6 +136,7 @@
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate x:DataType="views:ExtendedLatinCharacterChoiceViewModel">
                                             <Button Classes="extended-latin-choice"
+                                                    Focusable="False"
                                                     Content="{Binding Character}"
                                                     ToolTip.Tip="{Binding ToolTip}"
                                                     Click="InsertCharacter" />

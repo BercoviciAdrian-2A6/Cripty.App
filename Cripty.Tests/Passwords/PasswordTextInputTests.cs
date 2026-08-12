@@ -6,6 +6,20 @@ namespace Cripty.Tests.Passwords;
 public sealed class PasswordTextInputTests
 {
     [TestMethod]
+    public void GetMaskCharacter_DependsOnlyOnExplicitVisibilityState()
+    {
+        Assert.AreEqual(
+            PasswordTextInput.HiddenPasswordCharacter,
+            PasswordTextInput.GetMaskCharacter(
+                isPasswordVisible: false));
+
+        Assert.AreEqual(
+            '\0',
+            PasswordTextInput.GetMaskCharacter(
+                isPasswordVisible: true));
+    }
+
+    [TestMethod]
     public void InsertAtCaret_PreservesExistingPasswordText()
     {
         PasswordTextInsertionResult result =

@@ -7,6 +7,59 @@ namespace Cripty.Tests.ViewModels;
 public sealed class VaultPasswordViewModelTests
 {
     [TestMethod]
+    public void VisibilityCommands_ControlMaskAndLabelsUntilExplicitlyToggled()
+    {
+        VaultPasswordViewModel viewModel =
+            CreateViewModel(
+                VaultPasswordMode.Create);
+
+        Assert.AreEqual(
+            '●',
+            viewModel.PasswordMaskCharacter);
+
+        Assert.AreEqual(
+            "SHOW",
+            viewModel.PasswordVisibilityActionText);
+
+        viewModel.TogglePasswordVisibilityCommand.Execute(
+            parameter: null);
+
+        Assert.AreEqual(
+            '\0',
+            viewModel.PasswordMaskCharacter);
+
+        Assert.AreEqual(
+            "HIDE",
+            viewModel.PasswordVisibilityActionText);
+
+        Assert.AreEqual(
+            '●',
+            viewModel.ConfirmPasswordMaskCharacter);
+
+        viewModel.ToggleConfirmPasswordVisibilityCommand.Execute(
+            parameter: null);
+
+        Assert.AreEqual(
+            '\0',
+            viewModel.ConfirmPasswordMaskCharacter);
+
+        Assert.AreEqual(
+            "HIDE",
+            viewModel.ConfirmPasswordVisibilityActionText);
+
+        viewModel.TogglePasswordVisibilityCommand.Execute(
+            parameter: null);
+
+        Assert.AreEqual(
+            '●',
+            viewModel.PasswordMaskCharacter);
+
+        Assert.AreEqual(
+            "SHOW",
+            viewModel.PasswordVisibilityActionText);
+    }
+
+    [TestMethod]
     public void SpecialCharacters_InsertIntoPasswordAndConfirmationAtTheirCarets()
     {
         VaultPasswordViewModel viewModel =

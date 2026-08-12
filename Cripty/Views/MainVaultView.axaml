@@ -1175,11 +1175,11 @@
                         <Grid ColumnDefinitions="*,Auto,Auto">
                             <TextBox Text="{Binding NewPassword, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                      CaretIndex="{Binding NewPasswordCaretIndex, Mode=TwoWay}"
-                                     PasswordChar="●"
-                                     RevealPassword="{Binding IsNewPasswordVisible}" />
+                                     PasswordChar="{Binding NewPasswordMaskCharacter}" />
 
                             <Button Grid.Column="1"
                                     Classes="ghost"
+                                    Focusable="False"
                                     Margin="8,0,0,0"
                                     MinWidth="42"
                                     IsEnabled="{Binding !IsBusy}"
@@ -1196,6 +1196,7 @@
 
                             <Button Grid.Column="2"
                                     Classes="ghost"
+                                    Focusable="False"
                                     Margin="8,0,0,0"
                                     MinWidth="70"
                                     Command="{Binding ToggleNewPasswordVisibilityCommand}"
@@ -1219,11 +1220,11 @@
                         <Grid ColumnDefinitions="*,Auto,Auto">
                             <TextBox Text="{Binding ConfirmNewPassword, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                      CaretIndex="{Binding ConfirmNewPasswordCaretIndex, Mode=TwoWay}"
-                                     PasswordChar="●"
-                                     RevealPassword="{Binding IsConfirmNewPasswordVisible}" />
+                                     PasswordChar="{Binding ConfirmNewPasswordMaskCharacter}" />
 
                             <Button Grid.Column="1"
                                     Classes="ghost"
+                                    Focusable="False"
                                     Margin="8,0,0,0"
                                     MinWidth="42"
                                     IsEnabled="{Binding !IsBusy}"
@@ -1240,6 +1241,7 @@
 
                             <Button Grid.Column="2"
                                     Classes="ghost"
+                                    Focusable="False"
                                     Margin="8,0,0,0"
                                     MinWidth="70"
                                     Command="{Binding ToggleConfirmNewPasswordVisibilityCommand}"

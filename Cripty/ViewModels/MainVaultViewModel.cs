@@ -469,6 +469,14 @@ public partial class MainVaultViewModel :
         FormatCharacterCount(
             ConfirmNewPassword.Length);
 
+    public char NewPasswordMaskCharacter =>
+        PasswordTextInput.GetMaskCharacter(
+            IsNewPasswordVisible);
+
+    public char ConfirmNewPasswordMaskCharacter =>
+        PasswordTextInput.GetMaskCharacter(
+            IsConfirmNewPasswordVisible);
+
     public string NewPasswordVisibilityActionText =>
         IsNewPasswordVisible
             ? "HIDE"
@@ -823,12 +831,18 @@ public partial class MainVaultViewModel :
         bool value)
     {
         OnPropertyChanged(
+            nameof(NewPasswordMaskCharacter));
+
+        OnPropertyChanged(
             nameof(NewPasswordVisibilityActionText));
     }
 
     partial void OnIsConfirmNewPasswordVisibleChanged(
         bool value)
     {
+        OnPropertyChanged(
+            nameof(ConfirmNewPasswordMaskCharacter));
+
         OnPropertyChanged(
             nameof(ConfirmNewPasswordVisibilityActionText));
     }

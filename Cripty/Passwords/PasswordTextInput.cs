@@ -8,6 +8,16 @@ public readonly record struct PasswordTextInsertionResult(
 
 public static class PasswordTextInput
 {
+    public const char HiddenPasswordCharacter = '●';
+
+    public static char GetMaskCharacter(
+        bool isPasswordVisible)
+    {
+        return isPasswordVisible
+            ? '\0'
+            : HiddenPasswordCharacter;
+    }
+
     public static PasswordTextInsertionResult InsertAtCaret(
         string text,
         int caretIndex,

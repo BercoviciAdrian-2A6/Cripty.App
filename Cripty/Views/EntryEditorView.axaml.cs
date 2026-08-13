@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Security.Cryptography;
@@ -17,9 +18,76 @@ public partial class EntryEditorView : UserControl
     private const int MaximumEncodedImageSize =
         20 * 1024 * 1024;
 
+    private readonly Dictionary<Guid, ImageViewerWindow>
+        _imageViewers = [];
+
     public EntryEditorView()
     {
         InitializeComponent();
+
+        DetachedFromVisualTree +=
+            (_, _) => CloseImageViewers();
+
+        DataContextChanged +=
+            (_, _) => CloseImageViewers();
+    }
+
+    private void OpenImageViewer(
+        object? sender,
+        RoutedEventArgs eventArgs)
+    {
+        if (sender is not Button
+            {
+                DataContext: EntryFieldViewModel field
+            } ||
+            field.ImageSource is null)
+        {
+            return;
+        }
+
+        if (_imageViewers.TryGetValue(
+                field.FieldId,
+                out ImageViewerWindow? existingViewer))
+        {
+            if (existingViewer.WindowState ==
+                WindowState.Minimized)
+            {
+                existingViewer.WindowState =
+                    WindowState.Maximized;
+            }
+
+            existingViewer.Activate();
+            return;
+        }
+
+        if (TopLevel.GetTopLevel(this) is not Window owner)
+        {
+            return;
+        }
+
+        ImageViewerWindow viewer = new(field);
+
+        _imageViewers.Add(
+            field.FieldId,
+            viewer);
+
+        viewer.Closed += (_, _) =>
+            _imageViewers.Remove(
+                field.FieldId);
+
+        viewer.Show(owner);
+    }
+
+    private void CloseImageViewers()
+    {
+        foreach (ImageViewerWindow viewer in
+                 new List<ImageViewerWindow>(
+                     _imageViewers.Values))
+        {
+            viewer.Close();
+        }
+
+        _imageViewers.Clear();
     }
 
     private async void CopyFieldContent(

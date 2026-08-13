@@ -1,0 +1,137 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Cripty.ViewModels"
+        x:Class="Cripty.Views.ImageViewerWindow"
+        x:DataType="vm:ImageViewerViewModel"
+        Width="1180"
+        Height="720"
+        MinWidth="900"
+        MinHeight="480"
+        WindowStartupLocation="CenterOwner"
+        WindowState="Maximized"
+        Title="{Binding WindowTitle}"
+        KeyDown="HandleWindowKeyDown">
+
+    <Grid RowDefinitions="Auto,*">
+        <Border Grid.Row="0"
+                Padding="16,12"
+                Background="{StaticResource CriptySurfaceBrush}"
+                BorderBrush="{StaticResource CriptyBorderBrush}"
+                BorderThickness="0,0,0,1">
+
+            <Grid ColumnDefinitions="Auto,*,Auto"
+                  ColumnSpacing="16">
+                <StackPanel Grid.Column="0"
+                            VerticalAlignment="Center"
+                            Spacing="2">
+                    <TextBlock Text="IMAGE VIEWER"
+                               FontSize="10"
+                               FontWeight="SemiBold"
+                               LetterSpacing="1.4"
+                               Foreground="{StaticResource CriptyAccentBrush}" />
+
+                    <TextBlock Text="{Binding ImageDetailsText}"
+                               FontSize="8"
+                               FontWeight="SemiBold"
+                               LetterSpacing="0.7"
+                               Foreground="{StaticResource CriptyTextMutedBrush}" />
+                </StackPanel>
+
+                <TextBlock Grid.Column="1"
+                           Text="SCROLL TO MOVE · CTRL + WHEEL TO ZOOM · ESC TO CLOSE"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           FontSize="8"
+                           FontWeight="SemiBold"
+                           LetterSpacing="0.8"
+                           Foreground="{StaticResource CriptyTextMutedBrush}" />
+
+                <StackPanel Grid.Column="2"
+                            Orientation="Horizontal"
+                            VerticalAlignment="Center"
+                            Spacing="8">
+                    <Button Classes="ghost"
+                            Click="FitImage"
+                            Focusable="False"
+                            ToolTip.Tip="Fit the complete image inside the viewer">
+                        <TextBlock Text="FIT"
+                                   FontSize="9"
+                                   FontWeight="SemiBold"
+                                   LetterSpacing="1" />
+                    </Button>
+
+                    <Button Classes="ghost"
+                            Click="ShowActualSize"
+                            Focusable="False"
+                            ToolTip.Tip="Display one image pixel per screen-independent pixel">
+                        <TextBlock Text="100%"
+                                   FontSize="9"
+                                   FontWeight="SemiBold"
+                                   LetterSpacing="1" />
+                    </Button>
+
+                    <Button Classes="ghost"
+                            Click="ZoomOut"
+                            Focusable="False"
+                            ToolTip.Tip="Zoom out">
+                        <TextBlock Text="−"
+                                   FontSize="14"
+                                   FontWeight="SemiBold" />
+                    </Button>
+
+                    <Border MinWidth="66"
+                            Padding="10,8"
+                            Background="#09150F"
+                            BorderBrush="{StaticResource CriptyBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="3">
+                        <TextBlock Text="{Binding Zoom.ZoomText}"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   FontSize="9"
+                                   FontWeight="SemiBold"
+                                   LetterSpacing="0.7"
+                                   Foreground="{StaticResource CriptyTextBrush}" />
+                    </Border>
+
+                    <Button Classes="ghost"
+                            Click="ZoomIn"
+                            Focusable="False"
+                            ToolTip.Tip="Zoom in">
+                        <TextBlock Text="+"
+                                   FontSize="14"
+                                   FontWeight="SemiBold" />
+                    </Button>
+
+                    <Button Classes="ghost"
+                            Click="CloseViewer"
+                            Focusable="False">
+                        <TextBlock Text="CLOSE"
+                                   FontSize="9"
+                                   FontWeight="SemiBold"
+                                   LetterSpacing="1" />
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="1"
+                Padding="16"
+                Background="#030806">
+            <ScrollViewer x:Name="ImageScroller"
+                          HorizontalScrollBarVisibility="Auto"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalContentAlignment="Center"
+                          VerticalContentAlignment="Center"
+                          SizeChanged="HandleViewportSizeChanged"
+                          PointerWheelChanged="HandlePointerWheelChanged">
+                <Image Source="{Binding ImageSource}"
+                       Width="{Binding Zoom.DisplayWidth}"
+                       Height="{Binding Zoom.DisplayHeight}"
+                       Stretch="Fill"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center" />
+            </ScrollViewer>
+        </Border>
+    </Grid>
+</Window>

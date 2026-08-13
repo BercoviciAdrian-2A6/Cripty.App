@@ -1403,6 +1403,8 @@ public partial class EntryFieldViewModel :
     private bool _isInitializing = true;
     private bool _disposed;
 
+    public event EventHandler? ImageSourceInvalidating;
+
     public EntryFieldViewModel(
         Guid fieldId,
         string name,
@@ -1757,6 +1759,14 @@ public partial class EntryFieldViewModel :
         }
 
         Bitmap? previous = ImageSource;
+
+        if (previous is not null)
+        {
+            ImageSourceInvalidating?.Invoke(
+                this,
+                EventArgs.Empty);
+        }
+
         ImageSource = bitmap;
         previous?.Dispose();
 
@@ -2049,6 +2059,14 @@ public partial class EntryFieldViewModel :
         _disposed = true;
 
         Bitmap? imageSource = ImageSource;
+
+        if (imageSource is not null)
+        {
+            ImageSourceInvalidating?.Invoke(
+                this,
+                EventArgs.Empty);
+        }
+
         ImageSource = null;
         imageSource?.Dispose();
     }

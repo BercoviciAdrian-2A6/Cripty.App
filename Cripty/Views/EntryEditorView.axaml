@@ -1332,6 +1332,17 @@
                                                        FontWeight="SemiBold"
                                                        LetterSpacing="0.7"
                                                        Foreground="{StaticResource CriptyTextMutedBrush}" />
+
+                                            <Button Classes="ghost"
+                                                    HorizontalAlignment="Right"
+                                                    Click="OpenImageViewer"
+                                                    Focusable="False"
+                                                    ToolTip.Tip="Open this image in the enlarged zoomable viewer">
+                                                <TextBlock Text="EXPAND IMAGE"
+                                                           FontSize="8"
+                                                           FontWeight="SemiBold"
+                                                           LetterSpacing="0.8" />
+                                            </Button>
                                         </StackPanel>
                                     </StackPanel>
                                 </StackPanel>

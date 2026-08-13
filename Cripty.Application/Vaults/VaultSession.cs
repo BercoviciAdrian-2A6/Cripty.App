@@ -12,9 +12,11 @@ public sealed class VaultSession : IAsyncDisposable
 {
     private readonly VaultFileCodec _vaultFileCodec;
     private readonly EntryFileCodec _entryFileCodec;
+    private readonly BlobFileCodec _blobFileCodec;
 
     private readonly VaultFileStore _vaultFileStore;
     private readonly EntryFileStore _entryFileStore;
+    private readonly BlobFileStore _blobFileStore;
 
     private readonly byte[] _vaultRootKey;
 
@@ -23,6 +25,9 @@ public sealed class VaultSession : IAsyncDisposable
 
     private readonly Dictionary<Guid, PendingEntryChange>
         _pendingEntryChanges = [];
+
+    private readonly Dictionary<Guid, PendingBlobWrite>
+        _pendingBlobWrites = [];
 
     // Reversible deletions which have not yet been saved.
     private readonly HashSet<Guid>
@@ -39,6 +44,11 @@ public sealed class VaultSession : IAsyncDisposable
     private readonly HashSet<Guid>
         _orphanedEntryFilesPendingCleanup = [];
 
+    // Encrypted blob files which are no longer referenced by a
+    // committed entry. Failed deletion remains retryable.
+    private readonly HashSet<Guid>
+        _orphanedBlobFilesPendingCleanup = [];
+
     private VaultFile _vaultFile;
     private VaultIndex _index;
 
@@ -52,8 +62,10 @@ public sealed class VaultSession : IAsyncDisposable
         byte[] vaultRootKey,
         VaultFileCodec vaultFileCodec,
         EntryFileCodec entryFileCodec,
+        BlobFileCodec blobFileCodec,
         VaultFileStore vaultFileStore,
-        EntryFileStore entryFileStore)
+        EntryFileStore entryFileStore,
+        BlobFileStore blobFileStore)
     {
         VaultDirectoryPath = vaultDirectoryPath;
 
@@ -65,9 +77,11 @@ public sealed class VaultSession : IAsyncDisposable
 
         _vaultFileCodec = vaultFileCodec;
         _entryFileCodec = entryFileCodec;
+        _blobFileCodec = blobFileCodec;
 
         _vaultFileStore = vaultFileStore;
         _entryFileStore = entryFileStore;
+        _blobFileStore = blobFileStore;
     }
 
     public string VaultDirectoryPath { get; }
@@ -107,6 +121,10 @@ public sealed class VaultSession : IAsyncDisposable
     public bool HasPendingEntryFileDeletions =>
         ReadState(() =>
             _orphanedEntryFilesPendingCleanup.Count > 0);
+
+    public bool HasPendingBlobFileDeletions =>
+        ReadState(() =>
+            _orphanedBlobFilesPendingCleanup.Count > 0);
 
     public bool RequiresSaveRetry =>
         ReadState(RequiresSaveRetryCore);
@@ -187,9 +205,11 @@ public sealed class VaultSession : IAsyncDisposable
 
         VaultFileCodec vaultFileCodec = new();
         EntryFileCodec entryFileCodec = new();
+        BlobFileCodec blobFileCodec = new();
 
         VaultFileStore vaultFileStore = new();
         EntryFileStore entryFileStore = new();
+        BlobFileStore blobFileStore = new();
 
         Guid vaultId = Guid.NewGuid();
 
@@ -229,8 +249,10 @@ public sealed class VaultSession : IAsyncDisposable
                 vaultRootKey,
                 vaultFileCodec,
                 entryFileCodec,
+                blobFileCodec,
                 vaultFileStore,
-                entryFileStore);
+                entryFileStore,
+                blobFileStore);
         }
         catch
         {
@@ -254,9 +276,11 @@ public sealed class VaultSession : IAsyncDisposable
 
         VaultFileCodec vaultFileCodec = new();
         EntryFileCodec entryFileCodec = new();
+        BlobFileCodec blobFileCodec = new();
 
         VaultFileStore vaultFileStore = new();
         EntryFileStore entryFileStore = new();
+        BlobFileStore blobFileStore = new();
 
         VaultFile vaultFile =
             await vaultFileStore.ReadAsync(
@@ -282,8 +306,10 @@ public sealed class VaultSession : IAsyncDisposable
                 vaultRootKey,
                 vaultFileCodec,
                 entryFileCodec,
+                blobFileCodec,
                 vaultFileStore,
-                entryFileStore);
+                entryFileStore,
+                blobFileStore);
         }
         catch
         {
@@ -474,51 +500,195 @@ public sealed class VaultSession : IAsyncDisposable
     {
         MutateState(() =>
         {
-            ArgumentNullException.ThrowIfNull(
+            ReplaceEntryCore(modifiedEntry);
+            PruneUnreferencedPendingBlobs(
+                modifiedEntry.EntryId,
                 modifiedEntry);
+        });
+    }
 
-            EntryDescriptor descriptor =
-                GetEntryDescriptor(
-                    modifiedEntry.EntryId);
+    public void ReplaceEntryWithBlob(
+        VaultEntry modifiedEntry,
+        Guid blobId,
+        ReadOnlyMemory<byte> plaintext)
+    {
+        MutateState(() =>
+        {
+            ArgumentNullException.ThrowIfNull(modifiedEntry);
+            ValidateEntryId(modifiedEntry.EntryId);
 
-            EnsureEntryIsNotPendingDeletion(
-                modifiedEntry.EntryId);
-
-            if (modifiedEntry.SchemaVersion !=
-                StorageSchemaVersions.CurrentEntry)
+            if (blobId == Guid.Empty)
             {
                 throw new ArgumentException(
-                    "The modified entry has an unsupported " +
-                    "schema version.",
+                    "The blob ID cannot be empty.",
+                    nameof(blobId));
+            }
+
+            BlobFieldValue[] matchingValues =
+                modifiedEntry.Fields
+                    .Select(field => field.Value)
+                    .OfType<BlobFieldValue>()
+                    .Where(value => value.BlobId == blobId)
+                    .ToArray();
+
+            if (matchingValues.Length != 1)
+            {
+                throw new ArgumentException(
+                    "The modified entry must contain exactly one " +
+                    "field referencing the staged blob.",
                     nameof(modifiedEntry));
             }
 
-            if (modifiedEntry.Revision !=
-                descriptor.Revision)
+            if (matchingValues[0].Length != plaintext.Length)
             {
                 throw new ArgumentException(
-                    "The entry revision must match the current " +
-                    "descriptor revision. VaultSession increments " +
-                    "it during SaveAsync.",
-                    nameof(modifiedEntry));
+                    "The blob reference length does not match the " +
+                    "staged plaintext length.",
+                    nameof(plaintext));
             }
+
+            if (_pendingBlobWrites.ContainsKey(blobId))
+            {
+                throw new InvalidOperationException(
+                    $"Blob '{blobId}' is already staged.");
+            }
+
+            byte[] ownedPlaintext = plaintext.ToArray();
+
+            try
+            {
+                ReplaceEntryCore(modifiedEntry);
+
+                _pendingBlobWrites.Add(
+                    blobId,
+                    new PendingBlobWrite(
+                        modifiedEntry.EntryId,
+                        blobId,
+                        ownedPlaintext));
+
+                PruneUnreferencedPendingBlobs(
+                    modifiedEntry.EntryId,
+                    modifiedEntry);
+            }
+            catch
+            {
+                CryptographicOperations.ZeroMemory(
+                    ownedPlaintext);
+
+                throw;
+            }
+        });
+    }
+
+    public async Task<SensitiveBuffer> GetBlobAsync(
+        Guid entryId,
+        Guid blobId,
+        long expectedLength,
+        CancellationToken cancellationToken = default)
+    {
+        await _operationGate.WaitAsync(
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        try
+        {
+            EnsureNotDisposed();
+            ValidateEntryId(entryId);
+
+            if (blobId == Guid.Empty)
+            {
+                throw new ArgumentException(
+                    "The blob ID cannot be empty.",
+                    nameof(blobId));
+            }
+
+            if (expectedLength < 0 ||
+                expectedLength > int.MaxValue)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(expectedLength));
+            }
+
+            GetEntryDescriptor(entryId);
+
+            VaultEntry referencingEntry;
 
             if (_pendingEntryChanges.TryGetValue(
-                    modifiedEntry.EntryId,
-                    out PendingEntryChange? pendingChange))
+                    entryId,
+                    out PendingEntryChange? entryChange))
             {
-                pendingChange.ReplaceWorkingEntry(
-                    modifiedEntry);
+                referencingEntry = entryChange.WorkingEntry;
             }
             else
             {
-                _pendingEntryChanges.Add(
-                    modifiedEntry.EntryId,
-                    new PendingEntryChange(
-                        modifiedEntry,
-                        EntryChangeKind.Modified));
+                EntryDescriptor descriptor =
+                    GetEntryDescriptor(entryId);
+
+                referencingEntry =
+                    await ReadPersistedEntryCoreAsync(
+                            entryId,
+                            descriptor,
+                            cancellationToken)
+                        .ConfigureAwait(false);
             }
-        });
+
+            if (!GetBlobIds(referencingEntry).Contains(blobId))
+            {
+                throw new InvalidOperationException(
+                    $"Entry '{entryId}' does not reference blob " +
+                    $"'{blobId}'.");
+            }
+
+            byte[] plaintext;
+
+            if (_pendingBlobWrites.TryGetValue(
+                    blobId,
+                    out PendingBlobWrite? pendingWrite) &&
+                !pendingWrite.BlobFileWritten)
+            {
+                if (pendingWrite.EntryId != entryId)
+                {
+                    throw new InvalidDataException(
+                        "The staged blob belongs to a different entry.");
+                }
+
+                plaintext = pendingWrite.CopyPlaintext();
+            }
+            else
+            {
+                BlobFile blobFile =
+                    await _blobFileStore.ReadAsync(
+                            VaultDirectoryPath,
+                            blobId,
+                            cancellationToken)
+                        .ConfigureAwait(false);
+
+                if (blobFile.VaultId != Manifest.VaultId)
+                {
+                    throw new InvalidDataException(
+                        $"Blob '{blobId}' belongs to a different vault.");
+                }
+
+                plaintext =
+                    _blobFileCodec.Open(
+                        blobFile,
+                        _vaultRootKey);
+            }
+
+            if (plaintext.Length != expectedLength)
+            {
+                CryptographicOperations.ZeroMemory(plaintext);
+
+                throw new InvalidDataException(
+                    $"Blob '{blobId}' has an unexpected length.");
+            }
+
+            return new SensitiveBuffer(plaintext);
+        }
+        finally
+        {
+            _operationGate.Release();
+        }
     }
 
     public void DiscardEntryChanges(
@@ -557,6 +727,8 @@ public sealed class VaultSession : IAsyncDisposable
             // encrypted file. Pending deletion remains staged.
             _pendingEntryChanges.Remove(
                 entryId);
+
+            RemovePendingBlobsForEntry(entryId);
         });
     }
 
@@ -866,6 +1038,9 @@ public sealed class VaultSession : IAsyncDisposable
 
             DeletePendingEntryFiles(
                 cancellationToken);
+
+            DeletePendingBlobFiles(
+                cancellationToken);
         }
         finally
         {
@@ -876,6 +1051,10 @@ public sealed class VaultSession : IAsyncDisposable
     private async Task SavePendingEntryFilesAsync(
         CancellationToken cancellationToken)
     {
+        await SavePendingBlobFilesAsync(
+                cancellationToken)
+            .ConfigureAwait(false);
+
         PendingEntryChange[] changes =
             _pendingEntryChanges
                 .Values
@@ -899,12 +1078,73 @@ public sealed class VaultSession : IAsyncDisposable
         }
     }
 
+    private async Task SavePendingBlobFilesAsync(
+        CancellationToken cancellationToken)
+    {
+        PendingBlobWrite[] writes =
+            _pendingBlobWrites.Values.ToArray();
+
+        foreach (PendingBlobWrite write in writes)
+        {
+            if (write.BlobFileWritten ||
+                _entriesPendingDeletion.Contains(
+                    write.EntryId))
+            {
+                continue;
+            }
+
+            if (!_pendingEntryChanges.TryGetValue(
+                    write.EntryId,
+                    out PendingEntryChange? entryChange) ||
+                !GetBlobIds(entryChange.WorkingEntry)
+                    .Contains(write.BlobId))
+            {
+                throw new InvalidOperationException(
+                    $"Pending blob '{write.BlobId}' is not " +
+                    "referenced by its working entry.");
+            }
+
+            BlobFile blobFile =
+                _blobFileCodec.Create(
+                    Manifest.VaultId,
+                    write.BlobId,
+                    write.Plaintext,
+                    _vaultRootKey);
+
+            await _blobFileStore.WriteAsync(
+                    VaultDirectoryPath,
+                    blobFile,
+                    cancellationToken)
+                .ConfigureAwait(false);
+
+            write.RecordBlobFileWrite();
+        }
+    }
+
     private async Task SavePendingEntryFileAsync(
         PendingEntryChange pendingChange,
         CancellationToken cancellationToken)
     {
         VaultEntry entry =
             pendingChange.WorkingEntry;
+
+        if (pendingChange.Kind == EntryChangeKind.Modified &&
+            !pendingChange.ObsoleteBlobIdsRecorded)
+        {
+            EntryDescriptor persistedDescriptor =
+                GetEntryDescriptor(entry.EntryId);
+
+            VaultEntry persistedEntry =
+                await ReadPersistedEntryCoreAsync(
+                        entry.EntryId,
+                        persistedDescriptor,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+
+            pendingChange.RecordObsoleteBlobIds(
+                GetBlobIds(persistedEntry)
+                    .Except(GetBlobIds(entry)));
+        }
 
         EntryDescriptor descriptor =
             GetEntryDescriptor(
@@ -985,6 +1225,29 @@ public sealed class VaultSession : IAsyncDisposable
         Guid[] deletedEntryIds =
             _entriesPendingDeletion.ToArray();
 
+        HashSet<Guid> deletedEntryBlobIds = [];
+
+        foreach (Guid entryId in deletedEntryIds)
+        {
+            EntryDescriptor descriptor =
+                GetEntryDescriptor(entryId);
+
+            if (descriptor.Revision == 0)
+            {
+                continue;
+            }
+
+            VaultEntry persistedEntry =
+                await ReadPersistedEntryCoreAsync(
+                        entryId,
+                        descriptor,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+
+            deletedEntryBlobIds.UnionWith(
+                GetBlobIds(persistedEntry));
+        }
+
         HashSet<Guid> deletedEntryIdSet =
             deletedEntryIds.ToHashSet();
 
@@ -1034,6 +1297,20 @@ public sealed class VaultSession : IAsyncDisposable
             }
         }
 
+        _orphanedBlobFilesPendingCleanup.UnionWith(
+            deletedEntryBlobIds);
+
+        foreach (PendingEntryChange change in
+                 _pendingEntryChanges.Values)
+        {
+            if (!_entriesPendingDeletion.Contains(
+                    change.WorkingEntry.EntryId))
+            {
+                _orphanedBlobFilesPendingCleanup.UnionWith(
+                    change.ObsoleteBlobIds);
+            }
+        }
+
         // update the live session to match the persisted snapshot.
 
         Manifest = manifestToPersist;
@@ -1041,6 +1318,7 @@ public sealed class VaultSession : IAsyncDisposable
         _manifestDirty = false;
 
         _pendingEntryChanges.Clear();
+        ClearPendingBlobWrites();
         _entriesPendingDeletion.Clear();
         _entriesWithPendingMetadataChanges.Clear();
 
@@ -1065,7 +1343,129 @@ public sealed class VaultSession : IAsyncDisposable
         }
     }
 
+    private void DeletePendingBlobFiles(
+        CancellationToken cancellationToken)
+    {
+        foreach (Guid blobId in
+                 _orphanedBlobFilesPendingCleanup.ToArray())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            _blobFileStore.Delete(
+                VaultDirectoryPath,
+                blobId);
+
+            _orphanedBlobFilesPendingCleanup.Remove(
+                blobId);
+        }
+    }
+
     // State and synchronization helpers
+
+    private void ReplaceEntryCore(
+        VaultEntry modifiedEntry)
+    {
+        ArgumentNullException.ThrowIfNull(modifiedEntry);
+
+        EntryDescriptor descriptor =
+            GetEntryDescriptor(modifiedEntry.EntryId);
+
+        EnsureEntryIsNotPendingDeletion(
+            modifiedEntry.EntryId);
+
+        if (modifiedEntry.SchemaVersion !=
+            StorageSchemaVersions.CurrentEntry)
+        {
+            throw new ArgumentException(
+                "The modified entry has an unsupported " +
+                "schema version.",
+                nameof(modifiedEntry));
+        }
+
+        if (modifiedEntry.Revision !=
+            descriptor.Revision)
+        {
+            throw new ArgumentException(
+                "The entry revision must match the current " +
+                "descriptor revision. VaultSession increments " +
+                "it during SaveAsync.",
+                nameof(modifiedEntry));
+        }
+
+        if (_pendingEntryChanges.TryGetValue(
+                modifiedEntry.EntryId,
+                out PendingEntryChange? pendingChange))
+        {
+            pendingChange.ReplaceWorkingEntry(modifiedEntry);
+        }
+        else
+        {
+            _pendingEntryChanges.Add(
+                modifiedEntry.EntryId,
+                new PendingEntryChange(
+                    modifiedEntry,
+                    EntryChangeKind.Modified));
+        }
+    }
+
+    private void PruneUnreferencedPendingBlobs(
+        Guid entryId,
+        VaultEntry workingEntry)
+    {
+        HashSet<Guid> referencedBlobIds =
+            GetBlobIds(workingEntry);
+
+        foreach (PendingBlobWrite pendingWrite in
+                 _pendingBlobWrites.Values
+                     .Where(write =>
+                         write.EntryId == entryId &&
+                         !referencedBlobIds.Contains(
+                             write.BlobId))
+                     .ToArray())
+        {
+            _pendingBlobWrites.Remove(
+                pendingWrite.BlobId);
+
+            pendingWrite.Dispose();
+        }
+    }
+
+    private void RemovePendingBlobsForEntry(
+        Guid entryId)
+    {
+        foreach (PendingBlobWrite pendingWrite in
+                 _pendingBlobWrites.Values
+                     .Where(write =>
+                         write.EntryId == entryId)
+                     .ToArray())
+        {
+            _pendingBlobWrites.Remove(
+                pendingWrite.BlobId);
+
+            pendingWrite.Dispose();
+        }
+    }
+
+    private void ClearPendingBlobWrites()
+    {
+        foreach (PendingBlobWrite pendingWrite in
+                 _pendingBlobWrites.Values)
+        {
+            pendingWrite.Dispose();
+        }
+
+        _pendingBlobWrites.Clear();
+    }
+
+    private static HashSet<Guid> GetBlobIds(
+        VaultEntry entry)
+    {
+        return entry.Fields
+            .Select(field => field.Value)
+            .OfType<BlobFieldValue>()
+            .Select(value => value.BlobId)
+            .ToHashSet();
+    }
 
     private bool IsManifestDirtyCore()
     {
@@ -1081,9 +1481,13 @@ public sealed class VaultSession : IAsyncDisposable
     private bool RequiresSaveRetryCore()
     {
         return _pendingEntryChanges
-            .Values
-            .Any(change =>
-                change.EntryFileWritten);
+                   .Values
+                   .Any(change =>
+                       change.EntryFileWritten) ||
+               _pendingBlobWrites
+                   .Values
+                   .Any(write =>
+                       write.BlobFileWritten);
     }
 
     private bool HasUnsavedUserChangesCore()
@@ -1096,7 +1500,8 @@ public sealed class VaultSession : IAsyncDisposable
     private bool HasPendingSaveWorkCore()
     {
         return HasUnsavedUserChangesCore() ||
-               _orphanedEntryFilesPendingCleanup.Count > 0;
+               _orphanedEntryFilesPendingCleanup.Count > 0 ||
+               _orphanedBlobFilesPendingCleanup.Count > 0;
     }
 
     private async Task<VaultEntry>
@@ -1325,9 +1730,11 @@ public sealed class VaultSession : IAsyncDisposable
             CryptographicOperations.ZeroMemory(
                 _vaultRootKey);
 
+            ClearPendingBlobWrites();
             _pendingEntryChanges.Clear();
             _entriesPendingDeletion.Clear();
             _orphanedEntryFilesPendingCleanup.Clear();
+            _orphanedBlobFilesPendingCleanup.Clear();
         }
         finally
         {
@@ -1344,6 +1751,13 @@ public sealed class VaultSession : IAsyncDisposable
         // True means the entry file was replaced successfully
         // and the session is waiting for the manifest write.
         public bool EntryFileWritten { get; private set; }
+
+        public bool ObsoleteBlobIdsRecorded { get; private set; }
+
+        public IReadOnlyCollection<Guid> ObsoleteBlobIds =>
+            _obsoleteBlobIds;
+
+        private readonly HashSet<Guid> _obsoleteBlobIds = [];
 
         public PendingEntryChange(
             VaultEntry workingEntry,
@@ -1391,6 +1805,86 @@ public sealed class VaultSession : IAsyncDisposable
 
             WorkingEntry = committedEntry;
             EntryFileWritten = true;
+        }
+
+        public void RecordObsoleteBlobIds(
+            IEnumerable<Guid> blobIds)
+        {
+            ArgumentNullException.ThrowIfNull(blobIds);
+
+            if (ObsoleteBlobIdsRecorded)
+            {
+                throw new InvalidOperationException(
+                    "Obsolete blob IDs were already recorded.");
+            }
+
+            _obsoleteBlobIds.UnionWith(blobIds);
+            ObsoleteBlobIdsRecorded = true;
+        }
+    }
+
+    private sealed class PendingBlobWrite : IDisposable
+    {
+        private byte[]? _plaintext;
+
+        public PendingBlobWrite(
+            Guid entryId,
+            Guid blobId,
+            byte[] plaintext)
+        {
+            EntryId = entryId;
+            BlobId = blobId;
+            _plaintext = plaintext;
+        }
+
+        public Guid EntryId { get; }
+        public Guid BlobId { get; }
+        public bool BlobFileWritten { get; private set; }
+
+        public ReadOnlySpan<byte> Plaintext =>
+            GetPlaintext();
+
+        public byte[] CopyPlaintext()
+        {
+            return GetPlaintext().ToArray();
+        }
+
+        public void RecordBlobFileWrite()
+        {
+            if (BlobFileWritten)
+            {
+                throw new InvalidOperationException(
+                    "The blob file was already written.");
+            }
+
+            BlobFileWritten = true;
+            DisposePlaintext();
+        }
+
+        public void Dispose()
+        {
+            DisposePlaintext();
+        }
+
+        private ReadOnlySpan<byte> GetPlaintext()
+        {
+            return _plaintext ??
+                throw new InvalidOperationException(
+                    "The pending blob plaintext is unavailable.");
+        }
+
+        private void DisposePlaintext()
+        {
+            byte[]? plaintext =
+                Interlocked.Exchange(
+                    ref _plaintext,
+                    null);
+
+            if (plaintext is not null)
+            {
+                CryptographicOperations.ZeroMemory(
+                    plaintext);
+            }
         }
     }
 }

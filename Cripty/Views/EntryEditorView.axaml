@@ -839,7 +839,7 @@
                                    FontWeight="SemiBold"
                                    LetterSpacing="1" />
 
-                        <TextBlock Text="Add a custom text field or choose a common field-name preset."
+                        <TextBlock Text="Add a text field or paste an image from the clipboard."
                                    HorizontalAlignment="Center"
                                    TextAlignment="Center"
                                    FontSize="10"
@@ -854,7 +854,7 @@
                               ItemContainerTheme="{StaticResource EntryEditorStretchingItemContainerTheme}">
 
                     <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="vm:EntryTextFieldViewModel">
+                        <DataTemplate x:DataType="vm:EntryFieldViewModel">
                             <Border Classes="entry-field"
                                     Classes.modified="{Binding IsModified}"
                                     Margin="0,0,0,12"
@@ -960,11 +960,25 @@
 
                                         <Button Grid.Column="6"
                                                 Classes="field-copy"
+                                                IsVisible="{Binding IsTextField}"
                                                 Click="CopyFieldContent"
                                                 Margin="0,0,8,0"
                                                 ToolTip.Tip="Copy this field's content to the clipboard">
 
                                             <TextBlock Text="COPY"
+                                                       FontSize="8"
+                                                       FontWeight="SemiBold"
+                                                       LetterSpacing="0.7" />
+                                        </Button>
+
+                                        <Button Grid.Column="6"
+                                                Classes="field-copy"
+                                                IsVisible="{Binding IsImageField}"
+                                                Click="ReplaceImageFromClipboard"
+                                                Margin="0,0,8,0"
+                                                ToolTip.Tip="Replace this image from the clipboard">
+
+                                            <TextBlock Text="REPLACE"
                                                        FontSize="8"
                                                        FontWeight="SemiBold"
                                                        LetterSpacing="0.7" />
@@ -1098,7 +1112,7 @@
                                                                         BorderBrush="#52625A"
                                                                         BorderThickness="1"
                                                                         CornerRadius="3">
-                                                                    <StackPanel x:DataType="vm:EntryTextFieldViewModel"
+                                                                    <StackPanel x:DataType="vm:EntryFieldViewModel"
                                                                                 Width="178"
                                                                                 Spacing="7">
                                                                         <TextBlock Text="TEXT COLOR"
@@ -1298,6 +1312,27 @@
                                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                                  ScrollViewer.VerticalScrollBarVisibility="Disabled"
                                                  PlaceholderText="Enter text" />
+
+                                        <StackPanel IsVisible="{Binding IsImageField}"
+                                                    Spacing="8">
+                                            <Border MinHeight="120"
+                                                    Padding="8"
+                                                    Background="#08110D"
+                                                    BorderBrush="#304139"
+                                                    BorderThickness="1"
+                                                    CornerRadius="3">
+                                                <Image Source="{Binding ImageSource}"
+                                                       MaxHeight="460"
+                                                       Stretch="Uniform"
+                                                       HorizontalAlignment="Center" />
+                                            </Border>
+
+                                            <TextBlock Text="{Binding ImageDetailsText}"
+                                                       FontSize="8"
+                                                       FontWeight="SemiBold"
+                                                       LetterSpacing="0.7"
+                                                       Foreground="{StaticResource CriptyTextMutedBrush}" />
+                                        </StackPanel>
                                     </StackPanel>
                                 </StackPanel>
                             </Border>
@@ -1305,15 +1340,28 @@
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
 
-                <Button Classes="primary"
-                        HorizontalAlignment="Right"
-                        Command="{Binding OpenAddFieldDialogCommand}">
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Right"
+                            Spacing="8">
+                    <Button Classes="ghost"
+                            Click="PasteNewImageFromClipboard"
+                            ToolTip.Tip="Create an encrypted PNG image field from the clipboard">
 
-                    <TextBlock Text="ADD FIELD"
-                               FontSize="9"
-                               FontWeight="SemiBold"
-                               LetterSpacing="1" />
-                </Button>
+                        <TextBlock Text="PASTE IMAGE"
+                                   FontSize="9"
+                                   FontWeight="SemiBold"
+                                   LetterSpacing="1" />
+                    </Button>
+
+                    <Button Classes="primary"
+                            Command="{Binding OpenAddFieldDialogCommand}">
+
+                        <TextBlock Text="ADD TEXT FIELD"
+                                   FontSize="9"
+                                   FontWeight="SemiBold"
+                                   LetterSpacing="1" />
+                    </Button>
+                </StackPanel>
             </StackPanel>
         </ScrollViewer>
 

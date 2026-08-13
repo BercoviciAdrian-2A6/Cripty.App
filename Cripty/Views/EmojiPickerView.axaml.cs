@@ -42,7 +42,7 @@ public partial class EmojiPickerView : UserControl
         RoutedEventArgs eventArgs)
     {
         if (DataContext is not
-                EntryTextFieldViewModel field ||
+                EntryFieldViewModel field ||
             sender is not Button
             {
                 Content: string emoji

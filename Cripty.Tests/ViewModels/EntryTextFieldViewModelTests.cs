@@ -1,9 +1,10 @@
+using Cripty.Core.Entries;
 using Cripty.ViewModels;
 
 namespace Cripty.Tests.ViewModels;
 
 [TestClass]
-public sealed class EntryTextFieldViewModelTests
+public sealed class EntryFieldViewModelTests
 {
     [TestMethod]
     public void TotpPreset_IsRegisteredAsCollapsedPredefinedField()
@@ -29,7 +30,7 @@ public sealed class EntryTextFieldViewModelTests
     [TestMethod]
     public void TotpField_EnablesAuthenticationCodeOnlyWithContent()
     {
-        EntryTextFieldViewModel field =
+        EntryFieldViewModel field =
             CreateField(
                 "TOTP",
                 string.Empty);
@@ -62,7 +63,7 @@ public sealed class EntryTextFieldViewModelTests
     public void FreeFormField_SupportsRichTextEditing(
         string fieldName)
     {
-        EntryTextFieldViewModel field =
+        EntryFieldViewModel field =
             CreateField(
                 fieldName,
                 "Existing text");
@@ -80,7 +81,7 @@ public sealed class EntryTextFieldViewModelTests
     public void StructuredField_DoesNotSupportRichTextEditing(
         string fieldName)
     {
-        EntryTextFieldViewModel field =
+        EntryFieldViewModel field =
             CreateField(
                 fieldName,
                 "Existing text");
@@ -92,7 +93,7 @@ public sealed class EntryTextFieldViewModelTests
     [TestMethod]
     public void InsertTextAtCaret_PreservesExistingText()
     {
-        EntryTextFieldViewModel field =
+        EntryFieldViewModel field =
             CreateField(
                 "Notes",
                 "Hello world");
@@ -113,7 +114,7 @@ public sealed class EntryTextFieldViewModelTests
     [TestMethod]
     public void InsertTextAtCaret_ExpandsCollapsedFreeFormField()
     {
-        EntryTextFieldViewModel field =
+        EntryFieldViewModel field =
             CreateField(
                 "Notes",
                 "Text");
@@ -138,7 +139,7 @@ public sealed class EntryTextFieldViewModelTests
     [TestMethod]
     public void NonEmptyFreeFormField_StartsInReadMode()
     {
-        EntryTextFieldViewModel field =
+        EntryFieldViewModel field =
             CreateField(
                 "Notes",
                 "# Existing note");
@@ -153,7 +154,7 @@ public sealed class EntryTextFieldViewModelTests
     [TestMethod]
     public void EmptyFreeFormField_StartsInEditMode()
     {
-        EntryTextFieldViewModel field =
+        EntryFieldViewModel field =
             CreateField(
                 "[None]",
                 string.Empty);
@@ -170,7 +171,7 @@ public sealed class EntryTextFieldViewModelTests
     {
         int changeCount = 0;
 
-        EntryTextFieldViewModel field =
+        EntryFieldViewModel field =
             CreateField(
                 "Notes",
                 "Text",
@@ -192,7 +193,7 @@ public sealed class EntryTextFieldViewModelTests
     {
         int changeCount = 0;
 
-        EntryTextFieldViewModel field =
+        EntryFieldViewModel field =
             CreateField(
                 "Custom field",
                 "Make this bold",
@@ -222,7 +223,7 @@ public sealed class EntryTextFieldViewModelTests
     [TestMethod]
     public void ColorAndSizeCommands_UseTheExistingTextValue()
     {
-        EntryTextFieldViewModel field =
+        EntryFieldViewModel field =
             CreateField(
                 "Notes",
                 "Readable text");
@@ -247,7 +248,7 @@ public sealed class EntryTextFieldViewModelTests
     [TestMethod]
     public void StructuredField_DisablesFormattingCommands()
     {
-        EntryTextFieldViewModel field =
+        EntryFieldViewModel field =
             CreateField(
                 "Password",
                 "secret");
@@ -276,12 +277,39 @@ public sealed class EntryTextFieldViewModelTests
             field.IsPlainTextEditorVisible);
     }
 
-    private static EntryTextFieldViewModel CreateField(
+    [TestMethod]
+    public void ImageField_ExposesBlobValueAndDisablesTextEditing()
+    {
+        BlobFieldValue blobValue = new(
+            Guid.NewGuid(),
+            "image.png",
+            EntryEditorViewModel.ImageContentType,
+            12_345);
+
+        using EntryFieldViewModel field = new(
+            Guid.NewGuid(),
+            "Image",
+            blobValue,
+            imageSource: null,
+            changed: () => { },
+            moveUp: _ => { },
+            moveDown: _ => { },
+            remove: _ => { });
+
+        Assert.IsTrue(field.IsImageField);
+        Assert.IsFalse(field.IsTextField);
+        Assert.IsFalse(field.SupportsRichTextEditing);
+        Assert.IsFalse(field.IsPlainTextEditorVisible);
+        Assert.AreEqual("IMAGE · PNG", field.PresetText);
+        Assert.AreSame(blobValue, field.ToDomainValue());
+    }
+
+    private static EntryFieldViewModel CreateField(
         string name,
         string text,
         Action? changed = null)
     {
-        return new EntryTextFieldViewModel(
+        return new EntryFieldViewModel(
             Guid.NewGuid(),
             name,
             text,

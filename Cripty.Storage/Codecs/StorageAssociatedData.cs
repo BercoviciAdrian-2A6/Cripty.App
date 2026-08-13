@@ -7,6 +7,7 @@ internal static class StorageAssociatedData
     private const byte RootKeyPayload = 1;
     private const byte ManifestPayload = 2;
     private const byte EntryPayload = 3;
+    private const byte BlobPayload = 4;
 
     private const int GuidSize = 16;
     private const int FormatVersionSize = sizeof(int);
@@ -46,6 +47,18 @@ internal static class StorageAssociatedData
             formatVersion,
             vaultId,
             entryId);
+    }
+
+    public static byte[] ForBlob(
+        int formatVersion,
+        Guid vaultId,
+        Guid blobId)
+    {
+        return Create(
+            BlobPayload,
+            formatVersion,
+            vaultId,
+            blobId);
     }
 
     private static byte[] Create(

@@ -1023,7 +1023,7 @@ public partial class MainVaultViewModel :
                     _session.Folders.ToDictionary(
                         folder => folder.FolderId));
 
-            EntryEditor =
+            EntryEditorViewModel editor =
                 new EntryEditorViewModel(
                     _session,
                     descriptor,
@@ -1033,6 +1033,17 @@ public partial class MainVaultViewModel :
                     RecordUnsavedChange,
                     SetEntryEditorValidationState,
                     CloseEntryEditor);
+
+            try
+            {
+                await editor.InitializeImagesAsync();
+                EntryEditor = editor;
+            }
+            catch
+            {
+                editor.Dispose();
+                throw;
+            }
         }
         catch (Exception exception)
             when (IsExpectedOperationFailure(
@@ -2208,6 +2219,9 @@ public partial class MainVaultViewModel :
 
         try
         {
+            // Release decoded image surfaces before the session key
+            // and pending plaintext buffers are destroyed.
+            CloseEntryEditorWithoutRefresh();
             await _lockVault();
         }
         catch (Exception exception)
@@ -2987,7 +3001,8 @@ public partial class MainVaultViewModel :
 
         HasSaveWork =
             HasUnsavedChanges ||
-            _session.HasPendingEntryFileDeletions;
+            _session.HasPendingEntryFileDeletions ||
+            _session.HasPendingBlobFileDeletions;
 
         ManifestGenerationText =
             $"GENERATION {_session.ManifestGeneration}";
@@ -3031,7 +3046,9 @@ public partial class MainVaultViewModel :
             return;
         }
 
+        EntryEditorViewModel editor = EntryEditor;
         EntryEditor = null;
+        editor.Dispose();
         HasEntryEditorValidationError = false;
     }
 

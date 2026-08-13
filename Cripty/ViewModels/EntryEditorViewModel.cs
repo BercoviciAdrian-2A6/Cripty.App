@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Cripty.Application.Vaults;
@@ -16,8 +17,11 @@ using Cripty.TextFormatting;
 namespace Cripty.ViewModels;
 
 public partial class EntryEditorViewModel :
-    ViewModelBase
+    ViewModelBase,
+    IDisposable
 {
+    public const string ImageContentType = "image/png";
+
     private readonly VaultSession _session;
     private readonly Action<string> _recordUnsavedChange;
     private readonly Action<bool> _validationStateChanged;
@@ -27,6 +31,7 @@ public partial class EntryEditorViewModel :
     private long _revision;
     private VaultEntry? _persistedEntry;
     private bool _isApplyingSnapshot;
+    private bool _disposed;
 
     public EntryEditorViewModel(
         VaultSession session,
@@ -95,7 +100,7 @@ public partial class EntryEditorViewModel :
     { get; }
 
     public ObservableCollection<
-        EntryTextFieldViewModel> Fields
+        EntryFieldViewModel> Fields
     { get; } = [];
 
     public ObservableCollection<
@@ -315,6 +320,148 @@ public partial class EntryEditorViewModel :
             descriptor,
             entry,
             persistedEntry);
+
+        await InitializeImagesAsync();
+    }
+
+    public async Task InitializeImagesAsync()
+    {
+        foreach (EntryFieldViewModel field in
+                 Fields.Where(field =>
+                     field.IsImageField &&
+                     field.ImageSource is null))
+        {
+            BlobFieldValue blobValue =
+                field.BlobValue ??
+                throw new InvalidOperationException(
+                    "The image field has no blob reference.");
+
+            if (!string.Equals(
+                    blobValue.ContentType,
+                    ImageContentType,
+                    StringComparison.Ordinal))
+            {
+                throw new NotSupportedException(
+                    $"Image content type " +
+                    $"'{blobValue.ContentType}' is not supported.");
+            }
+
+            using SensitiveBuffer plaintext =
+                await _session.GetBlobAsync(
+                    EntryId,
+                    blobValue.BlobId,
+                    blobValue.Length);
+
+            using Stream stream =
+                plaintext.OpenReadStream();
+
+            Bitmap bitmap = new(stream);
+
+            try
+            {
+                ValidateImageDimensions(bitmap);
+                field.SetImageSource(bitmap);
+            }
+            catch
+            {
+                bitmap.Dispose();
+                throw;
+            }
+        }
+    }
+
+    public void AddImage(
+        byte[] pngBytes,
+        Bitmap bitmap)
+    {
+        ArgumentNullException.ThrowIfNull(pngBytes);
+        ArgumentNullException.ThrowIfNull(bitmap);
+        EnsureNotDisposed();
+        ValidateImageDimensions(bitmap);
+
+        Guid blobId = Guid.NewGuid();
+
+        BlobFieldValue blobValue = new(
+            blobId,
+            "image.png",
+            ImageContentType,
+            pngBytes.LongLength);
+
+        EntryFieldViewModel field =
+            CreateImageFieldViewModel(
+                Guid.NewGuid(),
+                "Image",
+                blobValue,
+                bitmap);
+
+        Fields.Add(field);
+        UpdateFieldPositions();
+
+        if (!TryPersistFieldsWithBlob(
+                field,
+                pngBytes,
+                $"IMAGE FIELD ADDED TO ENTRY '{EntryName}'"))
+        {
+            Fields.Remove(field);
+            field.Dispose();
+            UpdateFieldPositions();
+        }
+    }
+
+    public void ReplaceImage(
+        EntryFieldViewModel field,
+        byte[] pngBytes,
+        Bitmap bitmap)
+    {
+        ArgumentNullException.ThrowIfNull(field);
+        ArgumentNullException.ThrowIfNull(pngBytes);
+        ArgumentNullException.ThrowIfNull(bitmap);
+        EnsureNotDisposed();
+        ValidateImageDimensions(bitmap);
+
+        if (!field.IsImageField ||
+            !Fields.Contains(field))
+        {
+            throw new InvalidOperationException(
+                "The selected field is not an image field in this entry.");
+        }
+
+        BlobFieldValue replacement = new(
+            Guid.NewGuid(),
+            "image.png",
+            ImageContentType,
+            pngBytes.LongLength);
+
+        VaultEntry modifiedEntry =
+            BuildWorkingEntry(
+                field,
+                replacement);
+
+        try
+        {
+            _session.ReplaceEntryWithBlob(
+                modifiedEntry,
+                replacement.BlobId,
+                pngBytes);
+
+            field.ReplaceImage(
+                replacement,
+                bitmap);
+
+            CompleteFieldPersistence(
+                $"IMAGE REPLACED IN ENTRY '{EntryName}'");
+        }
+        catch (Exception exception)
+            when (IsExpectedOperationFailure(exception))
+        {
+            bitmap.Dispose();
+            ErrorMessage = exception.Message;
+        }
+    }
+
+    public void ShowImageError(string message)
+    {
+        ErrorMessage = message;
     }
 
     private bool CanRevertChanges()
@@ -355,6 +502,8 @@ public partial class EntryEditorViewModel :
                 descriptor,
                 persistedEntry,
                 persistedEntry);
+
+            await InitializeImagesAsync();
 
             _recordUnsavedChange(
                 $"CONTENT CHANGES REVERTED FOR ENTRY '{EntryName}'");
@@ -479,7 +628,7 @@ public partial class EntryEditorViewModel :
             return;
         }
 
-        EntryTextFieldViewModel field =
+        EntryFieldViewModel field =
             CreateFieldViewModel(
                 Guid.NewGuid(),
                 fieldName.Trim(),
@@ -500,7 +649,7 @@ public partial class EntryEditorViewModel :
     }
 
     private void MoveFieldUp(
-        EntryTextFieldViewModel field)
+        EntryFieldViewModel field)
     {
         int index = Fields.IndexOf(field);
 
@@ -527,7 +676,7 @@ public partial class EntryEditorViewModel :
     }
 
     private void MoveFieldDown(
-        EntryTextFieldViewModel field)
+        EntryFieldViewModel field)
     {
         int index = Fields.IndexOf(field);
 
@@ -555,7 +704,7 @@ public partial class EntryEditorViewModel :
     }
 
     private void RemoveField(
-        EntryTextFieldViewModel field)
+        EntryFieldViewModel field)
     {
         int index = Fields.IndexOf(field);
 
@@ -567,8 +716,12 @@ public partial class EntryEditorViewModel :
         Fields.RemoveAt(index);
         UpdateFieldPositions();
 
-        if (!TryPersistFields(
+        if (TryPersistFields(
                 $"FIELD '{field.Name}' REMOVED FROM ENTRY '{EntryName}'"))
+        {
+            field.Dispose();
+        }
+        else
         {
             Fields.Insert(index, field);
             UpdateFieldPositions();
@@ -576,7 +729,7 @@ public partial class EntryEditorViewModel :
     }
 
     private void OpenPasswordGenerator(
-        EntryTextFieldViewModel field)
+        EntryFieldViewModel field)
     {
         PasswordGeneratorDialog.Open(
             generatedPassword =>
@@ -584,14 +737,14 @@ public partial class EntryEditorViewModel :
     }
 
     private void OpenPasswordInspector(
-        EntryTextFieldViewModel field)
+        EntryFieldViewModel field)
     {
         PasswordInspectorDialog.Open(
             field.Text);
     }
 
     private void OpenTotpCode(
-        EntryTextFieldViewModel field)
+        EntryFieldViewModel field)
     {
         TotpCodeDialog.Open(
             field.Text);
@@ -624,25 +777,13 @@ public partial class EntryEditorViewModel :
 
         try
         {
-            VaultEntry modifiedEntry = new(
-                _schemaVersion,
-                EntryId,
-                _revision,
-                Fields.Select(field =>
-                    new EntryField(
-                        field.FieldId,
-                        field.Name.Trim(),
-                        new TextFieldValue(
-                            field.Text))));
+            VaultEntry modifiedEntry =
+                BuildWorkingEntry();
 
             _session.ReplaceEntry(
                 modifiedEntry);
 
-            RefreshEntryState();
-            RefreshFieldSummary();
-            RefreshFieldModificationStates();
-            _recordUnsavedChange(statusMessage);
-            ClearError();
+            CompleteFieldPersistence(statusMessage);
 
             return true;
         }
@@ -653,6 +794,73 @@ public partial class EntryEditorViewModel :
             ErrorMessage = exception.Message;
             return false;
         }
+    }
+
+    private bool TryPersistFieldsWithBlob(
+        EntryFieldViewModel imageField,
+        byte[] pngBytes,
+        string statusMessage)
+    {
+        string? validationMessage =
+            ValidateFields();
+
+        SetValidationState(validationMessage);
+
+        if (validationMessage is not null)
+        {
+            return false;
+        }
+
+        try
+        {
+            BlobFieldValue blobValue =
+                imageField.BlobValue ??
+                throw new InvalidOperationException(
+                    "The image field has no blob reference.");
+
+            _session.ReplaceEntryWithBlob(
+                BuildWorkingEntry(),
+                blobValue.BlobId,
+                pngBytes);
+
+            CompleteFieldPersistence(statusMessage);
+            return true;
+        }
+        catch (Exception exception)
+            when (IsExpectedOperationFailure(exception))
+        {
+            ErrorMessage = exception.Message;
+            return false;
+        }
+    }
+
+    private VaultEntry BuildWorkingEntry(
+        EntryFieldViewModel? overriddenField = null,
+        BlobFieldValue? overriddenBlobValue = null)
+    {
+        return new VaultEntry(
+            _schemaVersion,
+            EntryId,
+            _revision,
+            Fields.Select(field =>
+                new EntryField(
+                    field.FieldId,
+                    field.Name.Trim(),
+                    ReferenceEquals(field, overriddenField)
+                        ? overriddenBlobValue ??
+                          throw new InvalidOperationException(
+                              "The image override is missing.")
+                        : field.ToDomainValue())));
+    }
+
+    private void CompleteFieldPersistence(
+        string statusMessage)
+    {
+        RefreshEntryState();
+        RefreshFieldSummary();
+        RefreshFieldModificationStates();
+        _recordUnsavedChange(statusMessage);
+        ClearError();
     }
 
     private string? ValidateFields()
@@ -676,20 +884,11 @@ public partial class EntryEditorViewModel :
                 "The loaded entry does not match this editor.");
         }
 
-        if (entry.Fields.Any(field =>
-                field.Value is not TextFieldValue))
-        {
-            throw new NotSupportedException(
-                "This entry contains a field type which the text-only editor does not support yet.");
-        }
-
         if (persistedEntry is not null &&
-            (persistedEntry.EntryId != EntryId ||
-             persistedEntry.Fields.Any(field =>
-                 field.Value is not TextFieldValue)))
+            persistedEntry.EntryId != EntryId)
         {
-            throw new NotSupportedException(
-                "The saved entry counterpart is incompatible with this text-only editor.");
+            throw new InvalidOperationException(
+                "The saved entry counterpart does not match this editor.");
         }
 
         _isApplyingSnapshot = true;
@@ -704,19 +903,45 @@ public partial class EntryEditorViewModel :
             RevisionText =
                 $"REVISION {entry.Revision}";
 
+            DisposeFields();
             Fields.Clear();
 
             foreach (EntryField field in
                      entry.Fields)
             {
-                TextFieldValue value =
-                    (TextFieldValue)field.Value;
+                switch (field.Value)
+                {
+                    case TextFieldValue value:
+                        Fields.Add(
+                            CreateFieldViewModel(
+                                field.FieldId,
+                                field.Name,
+                                value.Text));
+                        break;
 
-                Fields.Add(
-                    CreateFieldViewModel(
-                        field.FieldId,
-                        field.Name,
-                        value.Text));
+                    case BlobFieldValue value
+                        when string.Equals(
+                            value.ContentType,
+                            ImageContentType,
+                            StringComparison.Ordinal):
+                        Fields.Add(
+                            CreateImageFieldViewModel(
+                                field.FieldId,
+                                field.Name,
+                                value,
+                                imageSource: null));
+                        break;
+
+                    case BlobFieldValue value:
+                        throw new NotSupportedException(
+                            $"Blob content type " +
+                            $"'{value.ContentType}' is not supported.");
+
+                    default:
+                        throw new NotSupportedException(
+                            $"Field value type " +
+                            $"'{field.Value.GetType().Name}' is not supported.");
+                }
             }
 
             UpdateFieldPositions();
@@ -732,13 +957,13 @@ public partial class EntryEditorViewModel :
         }
     }
 
-    private EntryTextFieldViewModel
+    private EntryFieldViewModel
         CreateFieldViewModel(
             Guid fieldId,
             string name,
             string text)
     {
-        return new EntryTextFieldViewModel(
+        return new EntryFieldViewModel(
             fieldId,
             name,
             text,
@@ -749,6 +974,24 @@ public partial class EntryEditorViewModel :
             OpenPasswordGenerator,
             OpenPasswordInspector,
             OpenTotpCode);
+    }
+
+    private EntryFieldViewModel
+        CreateImageFieldViewModel(
+            Guid fieldId,
+            string name,
+            BlobFieldValue blobValue,
+            Bitmap? imageSource)
+    {
+        return new EntryFieldViewModel(
+            fieldId,
+            name,
+            blobValue,
+            imageSource,
+            FieldContentsChanged,
+            MoveFieldUp,
+            MoveFieldDown,
+            RemoveField);
     }
 
     private void RebuildTags()
@@ -832,7 +1075,7 @@ public partial class EntryEditorViewModel :
     {
         if (_persistedEntry is null)
         {
-            foreach (EntryTextFieldViewModel field
+            foreach (EntryFieldViewModel field
                      in Fields)
             {
                 field.UpdateModificationState(
@@ -861,7 +1104,7 @@ public partial class EntryEditorViewModel :
              index < Fields.Count;
              index++)
         {
-            EntryTextFieldViewModel field =
+            EntryFieldViewModel field =
                 Fields[index];
 
             bool isModified = true;
@@ -871,20 +1114,15 @@ public partial class EntryEditorViewModel :
                     out (EntryField Field, int Index)
                         persisted))
             {
-                TextFieldValue persistedValue =
-                    (TextFieldValue)
-                    persisted.Field.Value;
-
                 isModified =
                     persisted.Index != index ||
                     !string.Equals(
                         persisted.Field.Name,
                         field.Name,
                         StringComparison.Ordinal) ||
-                    !string.Equals(
-                        persistedValue.Text,
-                        field.Text,
-                        StringComparison.Ordinal);
+                    !Equals(
+                        persisted.Field.Value,
+                        field.ToDomainValue());
             }
 
             field.UpdateModificationState(
@@ -979,6 +1217,54 @@ public partial class EntryEditorViewModel :
     private void ClearError()
     {
         ErrorMessage = null;
+    }
+
+    private static void ValidateImageDimensions(
+        Bitmap bitmap)
+    {
+        const int MaximumDimension = 8192;
+        const long MaximumPixelCount = 40_000_000;
+
+        int width = bitmap.PixelSize.Width;
+        int height = bitmap.PixelSize.Height;
+
+        if (width <= 0 ||
+            height <= 0 ||
+            width > MaximumDimension ||
+            height > MaximumDimension ||
+            (long)width * height > MaximumPixelCount)
+        {
+            throw new InvalidDataException(
+                "The image dimensions are invalid or exceed the " +
+                "supported limit.");
+        }
+    }
+
+    private void DisposeFields()
+    {
+        foreach (EntryFieldViewModel field in Fields)
+        {
+            field.Dispose();
+        }
+    }
+
+    private void EnsureNotDisposed()
+    {
+        ObjectDisposedException.ThrowIf(
+            _disposed,
+            this);
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+        DisposeFields();
+        Fields.Clear();
     }
 
     partial void OnSelectedAvailableTagChanged(
@@ -1100,34 +1386,36 @@ public partial class EntryEditorViewModel :
     }
 }
 
-public partial class EntryTextFieldViewModel :
-    ViewModelBase
+public partial class EntryFieldViewModel :
+    ViewModelBase,
+    IDisposable
 {
     private readonly Action _changed;
-    private readonly Action<EntryTextFieldViewModel> _moveUp;
-    private readonly Action<EntryTextFieldViewModel> _moveDown;
-    private readonly Action<EntryTextFieldViewModel> _remove;
-    private readonly Action<EntryTextFieldViewModel>
+    private readonly Action<EntryFieldViewModel> _moveUp;
+    private readonly Action<EntryFieldViewModel> _moveDown;
+    private readonly Action<EntryFieldViewModel> _remove;
+    private readonly Action<EntryFieldViewModel>
         _openPasswordGenerator;
-    private readonly Action<EntryTextFieldViewModel>
+    private readonly Action<EntryFieldViewModel>
         _openPasswordInspector;
-    private readonly Action<EntryTextFieldViewModel>
+    private readonly Action<EntryFieldViewModel>
         _openTotpCode;
     private bool _isInitializing = true;
+    private bool _disposed;
 
-    public EntryTextFieldViewModel(
+    public EntryFieldViewModel(
         Guid fieldId,
         string name,
         string text,
         Action changed,
-        Action<EntryTextFieldViewModel> moveUp,
-        Action<EntryTextFieldViewModel> moveDown,
-        Action<EntryTextFieldViewModel> remove,
-        Action<EntryTextFieldViewModel>
+        Action<EntryFieldViewModel> moveUp,
+        Action<EntryFieldViewModel> moveDown,
+        Action<EntryFieldViewModel> remove,
+        Action<EntryFieldViewModel>
             openPasswordGenerator,
-        Action<EntryTextFieldViewModel>
+        Action<EntryFieldViewModel>
             openPasswordInspector,
-        Action<EntryTextFieldViewModel>
+        Action<EntryFieldViewModel>
             openTotpCode)
     {
         if (fieldId == Guid.Empty)
@@ -1189,7 +1477,72 @@ public partial class EntryTextFieldViewModel :
         _isInitializing = false;
     }
 
+    public EntryFieldViewModel(
+        Guid fieldId,
+        string name,
+        BlobFieldValue blobValue,
+        Bitmap? imageSource,
+        Action changed,
+        Action<EntryFieldViewModel> moveUp,
+        Action<EntryFieldViewModel> moveDown,
+        Action<EntryFieldViewModel> remove)
+    {
+        if (fieldId == Guid.Empty)
+        {
+            throw new ArgumentException(
+                "The field ID cannot be empty.",
+                nameof(fieldId));
+        }
+
+        ArgumentNullException.ThrowIfNull(blobValue);
+
+        FieldId = fieldId;
+        BlobValue = blobValue;
+        ImageSource = imageSource;
+
+        _changed = changed ??
+            throw new ArgumentNullException(nameof(changed));
+        _moveUp = moveUp ??
+            throw new ArgumentNullException(nameof(moveUp));
+        _moveDown = moveDown ??
+            throw new ArgumentNullException(nameof(moveDown));
+        _remove = remove ??
+            throw new ArgumentNullException(nameof(remove));
+
+        _openPasswordGenerator = static _ => { };
+        _openPasswordInspector = static _ => { };
+        _openTotpCode = static _ => { };
+
+        Name = name;
+        Text = string.Empty;
+        IsContentExpanded = true;
+        IsFormattingPreviewVisible = false;
+        _isInitializing = false;
+    }
+
     public Guid FieldId { get; }
+
+    public BlobFieldValue? BlobValue { get; private set; }
+
+    public bool IsImageField =>
+        BlobValue is not null;
+
+    public bool IsTextField =>
+        !IsImageField;
+
+    [ObservableProperty]
+    public partial Bitmap? ImageSource
+    {
+        get;
+        private set;
+    }
+
+    public string ImageDetailsText =>
+        BlobValue is null
+            ? string.Empty
+            : $"PNG · {ImageSource?.PixelSize.Width ?? 0} × " +
+              $"{ImageSource?.PixelSize.Height ?? 0} · " +
+              $"{FormatByteLength(BlobValue.Length)}";
 
     [ObservableProperty]
     public partial string Name
@@ -1282,6 +1635,11 @@ public partial class EntryTextFieldViewModel :
     {
         get
         {
+            if (IsImageField)
+            {
+                return "IMAGE · PNG";
+            }
+
             EntryFieldPresetViewModel? preset =
                 EntryFieldPresetViewModel.FindByFieldName(
                     Name);
@@ -1293,14 +1651,17 @@ public partial class EntryTextFieldViewModel :
     }
 
     public bool IsPredefinedName =>
+        !IsImageField &&
         EntryFieldPresetViewModel.FindByFieldName(
             Name) is not null;
 
     public bool IsFieldNameEditorVisible =>
+        IsImageField ||
         EntryFieldPresetViewModel.FindByFieldName(
             Name)?.HidesNameEditor != true;
 
     public bool IsPasswordField =>
+        !IsImageField &&
         string.Equals(
             EntryFieldPresetViewModel.FindByFieldName(
                 Name)?.Key,
@@ -1308,6 +1669,7 @@ public partial class EntryTextFieldViewModel :
             StringComparison.Ordinal);
 
     public bool IsTotpField =>
+        !IsImageField &&
         string.Equals(
             EntryFieldPresetViewModel.FindByFieldName(
                 Name)?.Key,
@@ -1318,6 +1680,11 @@ public partial class EntryTextFieldViewModel :
     {
         get
         {
+            if (IsImageField)
+            {
+                return false;
+            }
+
             EntryFieldPresetViewModel? preset =
                 EntryFieldPresetViewModel.FindByFieldName(
                     Name);
@@ -1339,6 +1706,7 @@ public partial class EntryTextFieldViewModel :
         !IsFormattingPreviewVisible;
 
     public bool IsPlainTextEditorVisible =>
+        IsTextField &&
         !SupportsRichTextEditing;
 
     public bool IsFormattedTextPreviewVisible =>
@@ -1369,6 +1737,49 @@ public partial class EntryTextFieldViewModel :
         CaretIndex = insertionIndex + value.Length;
         SelectionStart = CaretIndex;
         SelectionEnd = CaretIndex;
+    }
+
+    public EntryFieldValue ToDomainValue()
+    {
+        return BlobValue is null
+            ? new TextFieldValue(Text)
+            : BlobValue;
+    }
+
+    public void SetImageSource(Bitmap bitmap)
+    {
+        ArgumentNullException.ThrowIfNull(bitmap);
+
+        if (!IsImageField)
+        {
+            throw new InvalidOperationException(
+                "A text field cannot display an image.");
+        }
+
+        Bitmap? previous = ImageSource;
+        ImageSource = bitmap;
+        previous?.Dispose();
+
+        OnPropertyChanged(nameof(ImageDetailsText));
+    }
+
+    public void ReplaceImage(
+        BlobFieldValue blobValue,
+        Bitmap bitmap)
+    {
+        ArgumentNullException.ThrowIfNull(blobValue);
+        ArgumentNullException.ThrowIfNull(bitmap);
+
+        if (!IsImageField)
+        {
+            throw new InvalidOperationException(
+                "A text field cannot be replaced with an image.");
+        }
+
+        BlobValue = blobValue;
+        SetImageSource(bitmap);
+        OnPropertyChanged(nameof(PresetText));
+        OnPropertyChanged(nameof(ImageDetailsText));
     }
 
     private bool CanUseTextFormatting()
@@ -1628,6 +2039,30 @@ public partial class EntryTextFieldViewModel :
         IsModified = isModified;
     }
 
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+
+        Bitmap? imageSource = ImageSource;
+        ImageSource = null;
+        imageSource?.Dispose();
+    }
+
+    private static string FormatByteLength(long length)
+    {
+        return length switch
+        {
+            < 1024 => $"{length} B",
+            < 1024 * 1024 => $"{length / 1024d:0.#} KB",
+            _ => $"{length / (1024d * 1024d):0.#} MB"
+        };
+    }
+
     partial void OnNameChanged(
         string value)
     {
@@ -1766,7 +2201,8 @@ public partial class EntryTextFieldViewModel :
         OpenTotpCodeCommand
             .NotifyCanExecuteChanged();
 
-        if (!_isInitializing)
+        if (!_isInitializing &&
+            IsTextField)
         {
             _changed();
         }

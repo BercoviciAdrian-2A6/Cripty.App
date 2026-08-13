@@ -64,6 +64,7 @@ public sealed class VaultSessionTests
         Assert.IsFalse(session.HasPendingEntryChanges);
         Assert.IsFalse(session.HasPendingEntryDeletions);
         Assert.IsFalse(session.HasPendingEntryFileDeletions);
+        Assert.IsFalse(session.HasPendingBlobFileDeletions);
         Assert.IsFalse(session.RequiresSaveRetry);
         Assert.IsFalse(session.HasUnsavedChanges);
 
@@ -595,6 +596,261 @@ public sealed class VaultSessionTests
     }
 
     [TestMethod]
+    public async Task SaveAndOpen_Blob_RoundTripsFromEncryptedFile()
+    {
+        Guid entryId;
+        Guid blobId = Guid.NewGuid();
+        byte[] plaintext = CreateBlobPlaintext(marker: 0x31);
+
+        try
+        {
+            await using (VaultSession session =
+                         await CreateSessionAsync())
+            {
+                VaultEntry entry =
+                    session.CreateEntry("Image entry");
+
+                entryId = entry.EntryId;
+
+                session.ReplaceEntryWithBlob(
+                    WithBlob(entry, blobId, plaintext.Length),
+                    blobId,
+                    plaintext);
+
+                using (SensitiveBuffer staged =
+                       await session.GetBlobAsync(
+                           entryId,
+                           blobId,
+                           plaintext.Length))
+                {
+                    await AssertBufferEqualsAsync(
+                        plaintext,
+                        staged);
+                }
+
+                await session.SaveAsync();
+
+                string blobPath = GetBlobFilePath(blobId);
+                Assert.IsTrue(File.Exists(blobPath));
+
+                byte[] storedBytes =
+                    await File.ReadAllBytesAsync(blobPath);
+
+                Assert.IsFalse(
+                    storedBytes.AsSpan().IndexOf(plaintext) >= 0,
+                    "The encrypted blob file contained plaintext bytes.");
+            }
+
+            await using VaultSession reopened =
+                await VaultSession.OpenAsync(
+                    _vaultDirectory,
+                    Password);
+
+            VaultEntry restored =
+                await reopened.GetEntryAsync(entryId);
+
+            BlobFieldValue restoredReference =
+                (BlobFieldValue)restored.Fields.Single().Value;
+
+            Assert.AreEqual(blobId, restoredReference.BlobId);
+            Assert.AreEqual("image/png", restoredReference.ContentType);
+            Assert.AreEqual(
+                plaintext.LongLength,
+                restoredReference.Length);
+
+            using SensitiveBuffer restoredBlob =
+                await reopened.GetBlobAsync(
+                    entryId,
+                    blobId,
+                    plaintext.Length);
+
+            await AssertBufferEqualsAsync(
+                plaintext,
+                restoredBlob);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(plaintext);
+        }
+    }
+
+    [TestMethod]
+    public async Task SaveAsync_ReplacedBlob_DeletesOldEncryptedFile()
+    {
+        byte[] originalPlaintext =
+            CreateBlobPlaintext(marker: 0x41);
+
+        byte[] replacementPlaintext =
+            CreateBlobPlaintext(marker: 0x61);
+
+        Guid originalBlobId = Guid.NewGuid();
+        Guid replacementBlobId = Guid.NewGuid();
+
+        try
+        {
+            await using VaultSession session =
+                await CreateSessionAsync();
+
+            VaultEntry entry =
+                session.CreateEntry("Image entry");
+
+            session.ReplaceEntryWithBlob(
+                WithBlob(
+                    entry,
+                    originalBlobId,
+                    originalPlaintext.Length),
+                originalBlobId,
+                originalPlaintext);
+
+            await session.SaveAsync();
+
+            Assert.IsTrue(
+                File.Exists(GetBlobFilePath(originalBlobId)));
+
+            VaultEntry persisted =
+                await session.GetEntryAsync(entry.EntryId);
+
+            session.ReplaceEntryWithBlob(
+                WithBlob(
+                    persisted,
+                    replacementBlobId,
+                    replacementPlaintext.Length),
+                replacementBlobId,
+                replacementPlaintext);
+
+            await session.SaveAsync();
+
+            Assert.IsFalse(
+                File.Exists(GetBlobFilePath(originalBlobId)));
+
+            Assert.IsTrue(
+                File.Exists(GetBlobFilePath(replacementBlobId)));
+
+            using SensitiveBuffer restored =
+                await session.GetBlobAsync(
+                    entry.EntryId,
+                    replacementBlobId,
+                    replacementPlaintext.Length);
+
+            await AssertBufferEqualsAsync(
+                replacementPlaintext,
+                restored);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(originalPlaintext);
+            CryptographicOperations.ZeroMemory(replacementPlaintext);
+        }
+    }
+
+    [TestMethod]
+    public async Task DiscardEntryChanges_StagedBlob_RestoresSavedBlob()
+    {
+        byte[] savedPlaintext =
+            CreateBlobPlaintext(marker: 0x51);
+
+        byte[] stagedPlaintext =
+            CreateBlobPlaintext(marker: 0x71);
+
+        Guid savedBlobId = Guid.NewGuid();
+        Guid stagedBlobId = Guid.NewGuid();
+
+        try
+        {
+            await using VaultSession session =
+                await CreateSessionAsync();
+
+            VaultEntry entry =
+                session.CreateEntry("Image entry");
+
+            session.ReplaceEntryWithBlob(
+                WithBlob(
+                    entry,
+                    savedBlobId,
+                    savedPlaintext.Length),
+                savedBlobId,
+                savedPlaintext);
+
+            await session.SaveAsync();
+
+            VaultEntry persisted =
+                await session.GetEntryAsync(entry.EntryId);
+
+            session.ReplaceEntryWithBlob(
+                WithBlob(
+                    persisted,
+                    stagedBlobId,
+                    stagedPlaintext.Length),
+                stagedBlobId,
+                stagedPlaintext);
+
+            session.DiscardEntryChanges(entry.EntryId);
+
+            VaultEntry restoredEntry =
+                await session.GetEntryAsync(entry.EntryId);
+
+            BlobFieldValue restoredReference =
+                (BlobFieldValue)
+                    restoredEntry.Fields.Single().Value;
+
+            Assert.AreEqual(savedBlobId, restoredReference.BlobId);
+            Assert.IsFalse(File.Exists(GetBlobFilePath(stagedBlobId)));
+
+            using SensitiveBuffer restoredBlob =
+                await session.GetBlobAsync(
+                    entry.EntryId,
+                    savedBlobId,
+                    savedPlaintext.Length);
+
+            await AssertBufferEqualsAsync(
+                savedPlaintext,
+                restoredBlob);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(savedPlaintext);
+            CryptographicOperations.ZeroMemory(stagedPlaintext);
+        }
+    }
+
+    [TestMethod]
+    public async Task SaveAsync_DeletedEntry_DeletesReferencedBlob()
+    {
+        byte[] plaintext = CreateBlobPlaintext(marker: 0x21);
+        Guid blobId = Guid.NewGuid();
+
+        try
+        {
+            await using VaultSession session =
+                await CreateSessionAsync();
+
+            VaultEntry entry =
+                session.CreateEntry("Image entry");
+
+            session.ReplaceEntryWithBlob(
+                WithBlob(entry, blobId, plaintext.Length),
+                blobId,
+                plaintext);
+
+            await session.SaveAsync();
+
+            Assert.IsTrue(File.Exists(GetBlobFilePath(blobId)));
+
+            session.MarkEntryForDeletion(entry.EntryId);
+            await session.SaveAsync();
+
+            Assert.IsFalse(File.Exists(GetBlobFilePath(blobId)));
+            Assert.IsFalse(
+                File.Exists(GetEntryFilePath(entry.EntryId)));
+            Assert.IsFalse(session.HasPendingBlobFileDeletions);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(plaintext);
+        }
+    }
+
+    [TestMethod]
     public async Task MetadataChanges_RoundTripWithoutIncrementingEntryRevision()
     {
         Guid entryId;
@@ -1075,6 +1331,59 @@ public sealed class VaultSessionTests
             [CreateTextField(text)]);
     }
 
+    private static VaultEntry WithBlob(
+        VaultEntry entry,
+        Guid blobId,
+        int length)
+    {
+        return new VaultEntry(
+            entry.SchemaVersion,
+            entry.EntryId,
+            entry.Revision,
+            [
+                new EntryField(
+                    Guid.NewGuid(),
+                    "Image",
+                    new BlobFieldValue(
+                        blobId,
+                        "image.png",
+                        "image/png",
+                        length))
+            ]);
+    }
+
+    private static byte[] CreateBlobPlaintext(byte marker)
+    {
+        byte[] plaintext = new byte[257];
+
+        for (int index = 0; index < plaintext.Length; index++)
+        {
+            plaintext[index] = (byte)(marker + index);
+        }
+
+        return plaintext;
+    }
+
+    private static async Task AssertBufferEqualsAsync(
+        byte[] expected,
+        SensitiveBuffer actual)
+    {
+        Assert.AreEqual(expected.Length, actual.Length);
+
+        byte[] restored = new byte[actual.Length];
+
+        try
+        {
+            using Stream stream = actual.OpenReadStream();
+            await stream.ReadExactlyAsync(restored);
+            CollectionAssert.AreEqual(expected, restored);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(restored);
+        }
+    }
+
     private static void AssertEntryText(
         VaultEntry entry,
         string expectedText)
@@ -1105,5 +1414,14 @@ public sealed class VaultSessionTests
             EntryFileStore.EntriesDirectoryName,
             entryId.ToString("D") +
             EntryFileStore.EntryFileExtension);
+    }
+
+    private string GetBlobFilePath(Guid blobId)
+    {
+        return Path.Combine(
+            _vaultDirectory,
+            BlobFileStore.BlobsDirectoryName,
+            blobId.ToString("D") +
+            BlobFileStore.BlobFileExtension);
     }
 }

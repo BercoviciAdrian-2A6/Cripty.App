@@ -2,7 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Cripty.ViewModels"
              x:Class="Cripty.Views.EmojiPickerView"
-             x:DataType="vm:EntryTextFieldViewModel">
+             x:DataType="vm:EntryFieldViewModel">
 
     <UserControl.Styles>
         <Style Selector="Button.emoji-choice">

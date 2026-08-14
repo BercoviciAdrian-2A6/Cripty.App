@@ -132,6 +132,8 @@ public sealed class VaultCopyServiceTests
             source.MarkEntryForDeletion(
                 pendingDeletion.EntryId);
 
+            await source.SaveAsync();
+
             EntryDescriptor sourceImageDescriptor =
                 source.Entries.Single(entry =>
                     entry.EntryId == sourceImageEntryId);
@@ -203,7 +205,7 @@ public sealed class VaultCopyServiceTests
 
             Assert.AreEqual(sourceGeneration, source.ManifestGeneration);
             Assert.HasCount(sourceEntryCount, source.Entries);
-            Assert.IsTrue(source.HasPendingEntryDeletions);
+            Assert.IsFalse(source.HasPendingEntryDeletions);
 
             await using VaultSession copied =
                 await VaultSession.OpenAsync(
@@ -332,6 +334,47 @@ public sealed class VaultCopyServiceTests
         {
             CryptographicOperations.ZeroMemory(imageBytes);
         }
+    }
+
+    [TestMethod]
+    public async Task CopyAsync_SourceManifestDirty_IsRejected()
+    {
+        await using VaultSession source =
+            await CreateVaultAsync(_sourceDirectory);
+
+        VaultEntry entry =
+            source.CreateEntry("Unsaved entry");
+
+        await using (VaultSession destination =
+                     await CreateVaultAsync(
+                         _destinationDirectory))
+        {
+            Assert.AreEqual(
+                0L,
+                destination.ManifestGeneration);
+        }
+
+        InvalidOperationException exception =
+            await Assert.ThrowsExactlyAsync<
+                InvalidOperationException>(
+                () => new VaultCopyService().CopyAsync(
+                    source,
+                    _destinationDirectory,
+                    Password,
+                    selectedEntryIds: [entry.EntryId],
+                    selectedFolderIds: []));
+
+        StringAssert.Contains(
+            exception.Message,
+            "Save the source vault's manifest changes");
+
+        await using VaultSession reopened =
+            await VaultSession.OpenAsync(
+                _destinationDirectory,
+                Password);
+
+        Assert.AreEqual(0L, reopened.ManifestGeneration);
+        Assert.IsEmpty(reopened.Entries);
     }
 
     [TestMethod]

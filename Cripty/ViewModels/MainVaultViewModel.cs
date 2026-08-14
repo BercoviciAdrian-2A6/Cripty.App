@@ -716,9 +716,13 @@ public partial class MainVaultViewModel :
             : "SAVE";
 
     public string DeleteEntryActionText =>
-        _selectedEntry?.IsPendingDeletion == true
-            ? "UNMARK DELETION"
-            : "DELETE ENTRY";
+        IsCopySelectionMode
+            ? _copySelectedEntryIds.Count > 1
+                ? $"DELETE {_copySelectedEntryIds.Count} ENTRIES"
+                : "DELETE ENTRY"
+            : _selectedEntry?.IsPendingDeletion == true
+                ? "UNMARK DELETION"
+                : "DELETE ENTRY";
 
     private bool CanMutateVault()
     {
@@ -755,6 +759,7 @@ public partial class MainVaultViewModel :
     private bool CanOpenCopyDialog()
     {
         return CanChangeCopySelection() &&
+               !_session.IsManifestDirty &&
                HasCopySelection;
     }
 
@@ -769,6 +774,7 @@ public partial class MainVaultViewModel :
     {
         return CanInteractWithCopyDialog() &&
                !IsDiscoveringCopyTargets &&
+               !_session.IsManifestDirty &&
                _selectedCopyTarget is not null &&
                !string.IsNullOrEmpty(CopyPassword) &&
                HasCopySelection;
@@ -809,6 +815,14 @@ public partial class MainVaultViewModel :
 
     private bool CanDeleteEntry()
     {
+        if (IsCopySelectionMode)
+        {
+            return !IsBusy &&
+                   !IsDialogOpen &&
+                   !IsCopyDialogOpen &&
+                   _copySelectedEntryIds.Count > 0;
+        }
+
         return CanMutateVault() &&
                _selectedEntry is not null;
     }
@@ -1096,6 +1110,7 @@ public partial class MainVaultViewModel :
     {
         NotifyCommandStates();
         OnPropertyChanged(nameof(CopySelectionSummaryText));
+        OnPropertyChanged(nameof(DeleteEntryActionText));
     }
 
     partial void OnCopySelectedEntryCountChanged(
@@ -1400,6 +1415,37 @@ public partial class MainVaultViewModel :
     [RelayCommand(CanExecute = nameof(CanDeleteEntry))]
     private void DeleteEntry()
     {
+        if (IsCopySelectionMode)
+        {
+            int entryCount =
+                _copySelectedEntryIds.Count;
+
+            if (entryCount == 0)
+            {
+                throw new InvalidOperationException(
+                    "Select at least one entry before deleting.");
+            }
+
+            string entryText = entryCount == 1
+                ? "The selected entry will"
+                : $"The {entryCount} selected entries will";
+
+            OpenConfirmationDialog(
+                DialogAction.DeleteEntries,
+                entryCount == 1
+                    ? "DELETE SELECTED ENTRY?"
+                    : $"DELETE {entryCount} SELECTED ENTRIES?",
+                $"{entryText} be staged for permanent deletion. " +
+                "Selected folders and entries included only through " +
+                "those folders will not be affected. The encrypted " +
+                "entry files are deleted when you press SAVE.",
+                entryCount == 1
+                    ? "DELETE ENTRY"
+                    : $"DELETE {entryCount} ENTRIES");
+
+            return;
+        }
+
         if (_selectedEntry!.IsPendingDeletion)
         {
             UndoSelectedEntryDeletion();
@@ -2071,6 +2117,10 @@ public partial class MainVaultViewModel :
                     DeleteSelectedEntry();
                     break;
 
+                case DialogAction.DeleteEntries:
+                    DeleteSelectedEntries();
+                    break;
+
                 case DialogAction.LockWithoutSaving:
                     CloseDialog();
                     await LockVaultCoreAsync();
@@ -2228,6 +2278,30 @@ public partial class MainVaultViewModel :
 
         RecordUnsavedChange(
             $"ENTRY '{entry.Name}' MARKED FOR DELETION");
+    }
+
+    private void DeleteSelectedEntries()
+    {
+        Guid[] entryIds =
+            [.. _copySelectedEntryIds];
+
+        if (entryIds.Length == 0)
+        {
+            throw new InvalidOperationException(
+                "Select at least one entry before deleting.");
+        }
+
+        foreach (Guid entryId in entryIds)
+        {
+            _session.MarkEntryForDeletion(entryId);
+        }
+
+        ExitCopySelection();
+
+        RecordUnsavedChange(
+            entryIds.Length == 1
+                ? "1 ENTRY MARKED FOR DELETION"
+                : $"{entryIds.Length} ENTRIES MARKED FOR DELETION");
     }
 
     private void UndoSelectedEntryDeletion()
@@ -3065,7 +3139,9 @@ public partial class MainVaultViewModel :
 
         OnPropertyChanged(nameof(CopySelectionSummaryText));
         OnPropertyChanged(nameof(CopyActionText));
+        OnPropertyChanged(nameof(DeleteEntryActionText));
 
+        DeleteEntryCommand.NotifyCanExecuteChanged();
         OpenCopyDialogCommand.NotifyCanExecuteChanged();
         ConfirmCopyCommand.NotifyCanExecuteChanged();
     }
@@ -3750,6 +3826,9 @@ public partial class MainVaultViewModel :
 
         ManifestGenerationText =
             $"GENERATION {_session.ManifestGeneration}";
+
+        OpenCopyDialogCommand.NotifyCanExecuteChanged();
+        ConfirmCopyCommand.NotifyCanExecuteChanged();
     }
 
     private void RecordUnsavedChange(
@@ -4110,6 +4189,7 @@ public partial class MainVaultViewModel :
         DeleteFolder,
         DeleteTag,
         DeleteEntry,
+        DeleteEntries,
         LockWithoutSaving
     }
 }

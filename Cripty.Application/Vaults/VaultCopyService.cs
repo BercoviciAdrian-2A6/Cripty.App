@@ -28,6 +28,8 @@ public sealed class VaultCopyService
         ArgumentNullException.ThrowIfNull(selectedEntryIds);
         ArgumentNullException.ThrowIfNull(selectedFolderIds);
 
+        EnsureSourceManifestIsClean(source);
+
         if (string.IsNullOrWhiteSpace(
                 destinationVaultDirectoryPath))
         {
@@ -79,6 +81,8 @@ public sealed class VaultCopyService
             IEnumerable<Guid> selectedFolderIds,
             CancellationToken cancellationToken)
     {
+        EnsureSourceManifestIsClean(source);
+
         if (destination.HasUnsavedChanges ||
             destination.RequiresSaveRetry)
         {
@@ -347,6 +351,17 @@ public sealed class VaultCopyService
             blobCount,
             createdFolderCount,
             createdTagCount);
+    }
+
+    private static void EnsureSourceManifestIsClean(
+        VaultSession source)
+    {
+        if (source.IsManifestDirty)
+        {
+            throw new InvalidOperationException(
+                "Save the source vault's manifest changes before " +
+                "copying entries to another vault.");
+        }
     }
 
     private static void ValidateSelections(

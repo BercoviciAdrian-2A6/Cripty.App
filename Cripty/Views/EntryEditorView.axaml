@@ -794,37 +794,6 @@
                     </StackPanel>
                 </Border>
 
-                <!-- Entry fields -->
-                <Grid ColumnDefinitions="*,Auto">
-                    <StackPanel Spacing="4">
-                        <TextBlock Text="ENTRY FIELDS"
-                                   FontSize="13"
-                                   FontWeight="SemiBold"
-                                   LetterSpacing="1.1" />
-
-                        <TextBlock Text="Text can be any length. Use the arrows to control the stored field order."
-                                   FontSize="9"
-                                   LineHeight="14"
-                                   Foreground="{StaticResource CriptyTextMutedBrush}"
-                                   TextWrapping="Wrap" />
-                    </StackPanel>
-
-                    <Border Grid.Column="1"
-                            Padding="10,6"
-                            VerticalAlignment="Center"
-                            Background="#0A1C12"
-                            BorderBrush="{StaticResource CriptyBorderBrush}"
-                            BorderThickness="1"
-                            CornerRadius="3">
-
-                        <TextBlock Text="{Binding FieldCountText}"
-                                   FontSize="9"
-                                   FontWeight="SemiBold"
-                                   LetterSpacing="0.9"
-                                   Foreground="{StaticResource CriptyTextMutedBrush}" />
-                    </Border>
-                </Grid>
-
                 <Border IsVisible="{Binding HasNoFields}"
                         Padding="28"
                         Background="#09150F"
@@ -1351,11 +1320,25 @@
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
 
-                <StackPanel Orientation="Horizontal"
-                            HorizontalAlignment="Right"
-                            Spacing="8">
-                    <Button Classes="ghost"
+                <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                    <Border Padding="10,6"
+                            VerticalAlignment="Center"
+                            Background="#0A1C12"
+                            BorderBrush="{StaticResource CriptyBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="3">
+
+                        <TextBlock Text="{Binding FieldCountText}"
+                                   FontSize="9"
+                                   FontWeight="SemiBold"
+                                   LetterSpacing="0.9"
+                                   Foreground="{StaticResource CriptyTextMutedBrush}" />
+                    </Border>
+
+                    <Button Grid.Column="2"
+                            Classes="ghost"
                             Click="PasteNewImageFromClipboard"
+                            Margin="0,0,8,0"
                             ToolTip.Tip="Create an encrypted PNG image field from the clipboard">
 
                         <TextBlock Text="PASTE IMAGE"
@@ -1364,7 +1347,8 @@
                                    LetterSpacing="1" />
                     </Button>
 
-                    <Button Classes="primary"
+                    <Button Grid.Column="3"
+                            Classes="primary"
                             Command="{Binding OpenAddFieldDialogCommand}">
 
                         <TextBlock Text="ADD TEXT FIELD"
@@ -1372,7 +1356,7 @@
                                    FontWeight="SemiBold"
                                    LetterSpacing="1" />
                     </Button>
-                </StackPanel>
+                </Grid>
             </StackPanel>
         </ScrollViewer>
 

@@ -77,6 +77,8 @@ public sealed class MainVaultCopySelectionTests
         nestedEntry.SelectCommand.Execute(null);
 
         Assert.AreEqual(1, viewModel.CopySelectedEntryCount);
+        Assert.IsTrue(
+            viewModel.OpenCopyDialogCommand.CanExecute(null));
 
         VaultFolderListItemViewModel parentFolder =
             viewModel.FolderItems
@@ -108,6 +110,116 @@ public sealed class MainVaultCopySelectionTests
         Assert.IsFalse(viewModel.IsCopySelectionMode);
         Assert.AreEqual(0, viewModel.CopySelectedEntryCount);
         Assert.IsFalse(viewModel.HasCopySelection);
+    }
+
+    [TestMethod]
+    public async Task CopySelection_DirtyManifest_DisablesCopyAction()
+    {
+        await using VaultSession session =
+            await VaultSession.CreateAsync(
+                _vaultDirectory,
+                Password,
+                TestKdfParameters);
+
+        session.CreateEntry("Unsaved entry");
+
+        MainVaultViewModel viewModel =
+            new(
+                "Source",
+                session,
+                () => Task.CompletedTask);
+
+        viewModel.EnterCopySelectionCommand.Execute(null);
+
+        viewModel.EntryItems.Single()
+            .SelectCommand.Execute(null);
+
+        Assert.IsTrue(viewModel.HasCopySelection);
+        Assert.IsFalse(
+            viewModel.OpenCopyDialogCommand.CanExecute(null));
+    }
+
+    [TestMethod]
+    public async Task CopySelection_DeleteEntries_IgnoresSelectedFolders()
+    {
+        await using VaultSession session =
+            await VaultSession.CreateAsync(
+                _vaultDirectory,
+                Password,
+                TestKdfParameters);
+
+        FolderDescriptor folder =
+            session.CreateFolder("Folder");
+
+        Guid folderOnlyEntryId =
+            session.CreateEntry(
+                    "Folder-only entry",
+                    folder.FolderId)
+                .EntryId;
+
+        Guid firstEntryId =
+            session.CreateEntry("First entry").EntryId;
+
+        Guid secondEntryId =
+            session.CreateEntry("Second entry").EntryId;
+
+        await session.SaveAsync();
+
+        MainVaultViewModel viewModel =
+            new(
+                "Source",
+                session,
+                () => Task.CompletedTask);
+
+        viewModel.EnterCopySelectionCommand.Execute(null);
+
+        VaultFolderListItemViewModel selectedFolder =
+            viewModel.FolderItems
+                .OfType<VaultFolderListItemViewModel>()
+                .Single(item =>
+                    item.FolderId == folder.FolderId);
+
+        selectedFolder.ToggleCopySelectionCommand.Execute(null);
+
+        Assert.AreEqual(1, viewModel.CopySelectedEntryCount);
+        Assert.IsFalse(
+            viewModel.DeleteEntryCommand.CanExecute(null));
+
+        viewModel.EntryItems.Single(entry =>
+                entry.EntryId == firstEntryId)
+            .SelectCommand.Execute(null);
+
+        Assert.AreEqual(
+            "DELETE ENTRY",
+            viewModel.DeleteEntryActionText);
+        Assert.IsTrue(
+            viewModel.DeleteEntryCommand.CanExecute(null));
+
+        viewModel.EntryItems.Single(entry =>
+                entry.EntryId == secondEntryId)
+            .SelectCommand.Execute(null);
+
+        Assert.AreEqual(
+            "DELETE 2 ENTRIES",
+            viewModel.DeleteEntryActionText);
+
+        viewModel.DeleteEntryCommand.Execute(null);
+
+        Assert.IsTrue(viewModel.IsDialogOpen);
+        Assert.AreEqual(
+            "DELETE 2 SELECTED ENTRIES?",
+            viewModel.DialogTitle);
+
+        await viewModel.ConfirmDialogCommand.ExecuteAsync(null);
+
+        CollectionAssert.AreEquivalent(
+            new[] { firstEntryId, secondEntryId },
+            session.EntriesPendingDeletion.ToArray());
+
+        Assert.IsFalse(
+            session.EntriesPendingDeletion.Contains(
+                folderOnlyEntryId));
+        Assert.IsFalse(viewModel.IsCopySelectionMode);
     }
 
     private static Argon2idParameters TestKdfParameters =>

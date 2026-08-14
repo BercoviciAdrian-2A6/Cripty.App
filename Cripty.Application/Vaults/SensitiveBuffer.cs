@@ -15,6 +15,9 @@ public sealed class SensitiveBuffer : IDisposable
     public int Length =>
         GetBuffer().Length;
 
+    internal ReadOnlyMemory<byte> ReadOnlyMemory =>
+        GetBuffer();
+
     public Stream OpenReadStream()
     {
         return new MemoryStream(

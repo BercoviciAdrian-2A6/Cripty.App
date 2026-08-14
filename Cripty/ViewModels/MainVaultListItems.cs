@@ -106,6 +106,9 @@ public partial class VaultFolderListItemViewModel :
     private readonly Action<VaultFolderListItemViewModel>
         _toggleExpansion;
 
+    private readonly Action<VaultFolderListItemViewModel>?
+        _toggleCopySelection;
+
     public VaultFolderListItemViewModel(
         VaultFolderFilterKind kind,
         Guid? folderId,
@@ -116,7 +119,11 @@ public partial class VaultFolderListItemViewModel :
         bool isExpandable,
         bool isExpanded,
         Action<VaultFolderListItemViewModel> select,
-        Action<VaultFolderListItemViewModel> toggleExpansion)
+        Action<VaultFolderListItemViewModel> toggleExpansion,
+        bool isCopySelectionMode = false,
+        bool isCopySelected = false,
+        Action<VaultFolderListItemViewModel>?
+            toggleCopySelection = null)
     {
         Kind = kind;
         FolderId = folderId;
@@ -126,6 +133,8 @@ public partial class VaultFolderListItemViewModel :
         EntryCountText = FormatCount(entryCount);
         IsExpandable = isExpandable;
         IsExpanded = isExpanded;
+        IsCopySelectionMode = isCopySelectionMode;
+        IsCopySelected = isCopySelected;
 
         _select = select ??
             throw new ArgumentNullException(
@@ -134,6 +143,9 @@ public partial class VaultFolderListItemViewModel :
         _toggleExpansion = toggleExpansion ??
             throw new ArgumentNullException(
                 nameof(toggleExpansion));
+
+        _toggleCopySelection =
+            toggleCopySelection;
     }
 
     public VaultFolderFilterKind Kind { get; }
@@ -162,8 +174,21 @@ public partial class VaultFolderListItemViewModel :
     public bool IsFolder =>
         Kind == VaultFolderFilterKind.Folder;
 
+    public bool IsCopySelectionMode { get; }
+
+    public bool CanCopySelect =>
+        IsCopySelectionMode &&
+        IsFolder;
+
     [ObservableProperty]
     public partial bool IsSelected
+    {
+        get;
+        private set;
+    }
+
+    [ObservableProperty]
+    public partial bool IsCopySelected
     {
         get;
         private set;
@@ -184,10 +209,22 @@ public partial class VaultFolderListItemViewModel :
         }
     }
 
+    [RelayCommand(CanExecute = nameof(CanCopySelect))]
+    private void ToggleCopySelection()
+    {
+        _toggleCopySelection?.Invoke(this);
+    }
+
     internal void SetSelected(
         bool isSelected)
     {
         IsSelected = isSelected;
+    }
+
+    internal void SetCopySelected(
+        bool isCopySelected)
+    {
+        IsCopySelected = isCopySelected;
     }
 
     private static string FormatCount(
@@ -211,7 +248,9 @@ public partial class VaultFolderEntryListItemViewModel :
         string name,
         int depth,
         EntrySessionState sessionState,
-        Action<VaultFolderEntryListItemViewModel> select)
+        Action<VaultFolderEntryListItemViewModel> select,
+        bool isCopySelectionMode = false,
+        bool isCopySelected = false)
     {
         EntryId = entryId;
         FolderId = folderId;
@@ -230,6 +269,9 @@ public partial class VaultFolderEntryListItemViewModel :
             !IsPendingDeletion &&
             sessionState.ChangeKind ==
             EntryChangeKind.Modified;
+
+        IsCopySelectionMode = isCopySelectionMode;
+        IsCopySelected = isCopySelected;
 
         _select = select ??
             throw new ArgumentNullException(
@@ -250,8 +292,21 @@ public partial class VaultFolderEntryListItemViewModel :
 
     public bool IsModifiedEntry { get; }
 
+    public bool IsCopySelectionMode { get; }
+
+    public bool IsCopySelectable =>
+        IsCopySelectionMode &&
+        !IsPendingDeletion;
+
     [ObservableProperty]
     public partial bool IsSelected
+    {
+        get;
+        private set;
+    }
+
+    [ObservableProperty]
+    public partial bool IsCopySelected
     {
         get;
         private set;
@@ -267,6 +322,12 @@ public partial class VaultFolderEntryListItemViewModel :
         bool isSelected)
     {
         IsSelected = isSelected;
+    }
+
+    internal void SetCopySelected(
+        bool isCopySelected)
+    {
+        IsCopySelected = isCopySelected;
     }
 }
 
@@ -337,7 +398,9 @@ public partial class VaultEntryListItemViewModel :
         DateTimeOffset createdUtc,
         DateTimeOffset modifiedUtc,
         EntrySessionState sessionState,
-        Action<VaultEntryListItemViewModel> select)
+        Action<VaultEntryListItemViewModel> select,
+        bool isCopySelectionMode = false,
+        bool isCopySelected = false)
     {
         EntryId = entryId;
         Name = name;
@@ -357,6 +420,9 @@ public partial class VaultEntryListItemViewModel :
             !IsPendingDeletion &&
             sessionState.ChangeKind ==
             EntryChangeKind.Modified;
+
+        IsCopySelectionMode = isCopySelectionMode;
+        IsCopySelected = isCopySelected;
 
         CreatedText =
             $"CREAT {createdUtc.ToLocalTime():yyyy-MM-dd HH:mm}";
@@ -389,8 +455,21 @@ public partial class VaultEntryListItemViewModel :
 
     public bool IsModifiedEntry { get; }
 
+    public bool IsCopySelectionMode { get; }
+
+    public bool IsCopySelectable =>
+        IsCopySelectionMode &&
+        !IsPendingDeletion;
+
     [ObservableProperty]
     public partial bool IsSelected
+    {
+        get;
+        private set;
+    }
+
+    [ObservableProperty]
+    public partial bool IsCopySelected
     {
         get;
         private set;
@@ -406,5 +485,11 @@ public partial class VaultEntryListItemViewModel :
         bool isSelected)
     {
         IsSelected = isSelected;
+    }
+
+    internal void SetCopySelected(
+        bool isCopySelected)
+    {
+        IsCopySelected = isCopySelected;
     }
 }

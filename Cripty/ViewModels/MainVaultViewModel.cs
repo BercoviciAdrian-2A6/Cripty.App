@@ -12,7 +12,9 @@ using Cripty.Application.Vaults;
 using Cripty.Core.Entries;
 using Cripty.Core.Vaults;
 using Cripty.Cryptography.Keys;
+using Cripty.Models;
 using Cripty.Passwords;
+using Cripty.Services;
 
 namespace Cripty.ViewModels;
 
@@ -22,11 +24,21 @@ public partial class MainVaultViewModel :
     private readonly VaultSession _session;
     private readonly Func<Task> _lockVault;
 
+    private readonly VaultCopyService _vaultCopyService;
+    private readonly VaultLocationService _vaultLocationService;
+    private readonly VaultDiscoveryService _vaultDiscoveryService;
+
     private readonly HashSet<Guid>
         _expandedFolderIds = [];
 
     private readonly HashSet<Guid>
         _expandedMoveDestinationIds = [];
+
+    private readonly HashSet<Guid>
+        _copySelectedEntryIds = [];
+
+    private readonly HashSet<Guid>
+        _copySelectedFolderIds = [];
 
     private bool _isRootExpanded = true;
     private bool _isMoveRootExpanded = true;
@@ -47,6 +59,9 @@ public partial class MainVaultViewModel :
     private VaultMoveDestinationItemViewModel?
         _selectedMoveDestination;
 
+    private VaultCopyTargetItemViewModel?
+        _selectedCopyTarget;
+
     private MoveOperationKind _moveOperationKind;
     private Guid _moveItemId;
     private Guid? _moveCurrentParentFolderId;
@@ -57,7 +72,10 @@ public partial class MainVaultViewModel :
     public MainVaultViewModel(
         string vaultName,
         VaultSession session,
-        Func<Task> lockVault)
+        Func<Task> lockVault,
+        VaultCopyService? vaultCopyService = null,
+        VaultLocationService? vaultLocationService = null,
+        VaultDiscoveryService? vaultDiscoveryService = null)
     {
         if (string.IsNullOrWhiteSpace(
                 vaultName))
@@ -76,6 +94,15 @@ public partial class MainVaultViewModel :
         _lockVault = lockVault ??
             throw new ArgumentNullException(
                 nameof(lockVault));
+
+        _vaultCopyService =
+            vaultCopyService ?? new VaultCopyService();
+
+        _vaultLocationService =
+            vaultLocationService ?? new VaultLocationService();
+
+        _vaultDiscoveryService =
+            vaultDiscoveryService ?? new VaultDiscoveryService();
 
         VaultDirectoryPath =
             _session.VaultDirectoryPath;
@@ -128,6 +155,10 @@ public partial class MainVaultViewModel :
     public ObservableCollection<
         VaultMoveDestinationItemViewModel>
         MoveDestinationItems
+    { get; } = [];
+
+    public ObservableCollection<
+        VaultCopyTargetItemViewModel> CopyTargetVaults
     { get; } = [];
 
     public IReadOnlyList<
@@ -389,6 +420,69 @@ public partial class MainVaultViewModel :
     }
 
     [ObservableProperty]
+    public partial bool IsCopySelectionMode
+    {
+        get;
+        private set;
+    }
+
+    [ObservableProperty]
+    public partial bool IsCopyDialogOpen
+    {
+        get;
+        private set;
+    }
+
+    [ObservableProperty]
+    public partial int CopySelectedEntryCount
+    {
+        get;
+        private set;
+    }
+
+    [ObservableProperty]
+    public partial bool IsDiscoveringCopyTargets
+    {
+        get;
+        private set;
+    }
+
+    [ObservableProperty]
+    public partial bool IsCopying
+    {
+        get;
+        private set;
+    }
+
+    [ObservableProperty]
+    public partial string CopyPassword
+    {
+        get;
+        set;
+    } = string.Empty;
+
+    [ObservableProperty]
+    public partial int CopyPasswordCaretIndex
+    {
+        get;
+        set;
+    }
+
+    [ObservableProperty]
+    public partial bool IsCopyPasswordVisible
+    {
+        get;
+        private set;
+    }
+
+    [ObservableProperty]
+    public partial string? CopyDialogErrorMessage
+    {
+        get;
+        private set;
+    }
+
+    [ObservableProperty]
     public partial bool IsDialogOpen
     {
         get;
@@ -455,6 +549,71 @@ public partial class MainVaultViewModel :
     public bool HasMoveDialogError =>
         !string.IsNullOrWhiteSpace(
             MoveDialogErrorMessage);
+
+    public bool HasCopyDialogError =>
+        !string.IsNullOrWhiteSpace(
+            CopyDialogErrorMessage);
+
+    public bool HasCopyTargets =>
+        CopyTargetVaults.Count > 0;
+
+    public bool HasNoCopyTargets =>
+        !HasCopyTargets &&
+        !IsDiscoveringCopyTargets;
+
+    public bool HasCopySelection =>
+        CopySelectedEntryCount > 0;
+
+    public string CopySelectionSummaryText
+    {
+        get
+        {
+            int entryCount =
+                CopySelectedEntryCount;
+
+            int folderCount =
+                _copySelectedFolderIds.Count;
+
+            string entries =
+                entryCount == 1
+                    ? "1 ENTRY"
+                    : $"{entryCount} ENTRIES";
+
+            if (folderCount == 0)
+            {
+                return entries + " SELECTED";
+            }
+
+            string folders =
+                folderCount == 1
+                    ? "1 FOLDER"
+                    : $"{folderCount} FOLDERS";
+
+            return $"{entries} · {folders} SELECTED";
+        }
+    }
+
+    public string SelectedCopyTargetText =>
+        _selectedCopyTarget is null
+            ? "NO DESTINATION VAULT SELECTED"
+            : $"DESTINATION · {_selectedCopyTarget.Name}";
+
+    public char CopyPasswordMaskCharacter =>
+        PasswordTextInput.GetMaskCharacter(
+            IsCopyPasswordVisible);
+
+    public string CopyPasswordVisibilityActionText =>
+        IsCopyPasswordVisible
+            ? "HIDE"
+            : "SHOW";
+
+    public string CopyActionText =>
+        IsCopying
+            ? "COPYING..."
+            : $"COPY {CopySelectedEntryCount} " +
+              (CopySelectedEntryCount == 1
+                  ? "ENTRY"
+                  : "ENTRIES");
 
     public string MoveDialogActionText =>
         _moveOperationKind == MoveOperationKind.Folder
@@ -566,7 +725,53 @@ public partial class MainVaultViewModel :
         return !IsBusy &&
                !IsDialogOpen &&
                !IsPasswordChangeOpen &&
-               !IsMoveDialogOpen;
+               !IsMoveDialogOpen &&
+               !IsCopySelectionMode &&
+               !IsCopyDialogOpen;
+    }
+
+    private bool CanEnterCopySelection()
+    {
+        if (!CanMutateVault() ||
+            EntryEditor is not null)
+        {
+            return false;
+        }
+
+        HashSet<Guid> pendingDeletionIds =
+            _session.EntriesPendingDeletion.ToHashSet();
+
+        return _session.Entries.Any(entry =>
+            !pendingDeletionIds.Contains(entry.EntryId));
+    }
+
+    private bool CanChangeCopySelection()
+    {
+        return IsCopySelectionMode &&
+               !IsCopyDialogOpen &&
+               !IsBusy;
+    }
+
+    private bool CanOpenCopyDialog()
+    {
+        return CanChangeCopySelection() &&
+               HasCopySelection;
+    }
+
+    private bool CanInteractWithCopyDialog()
+    {
+        return IsCopyDialogOpen &&
+               !IsCopying &&
+               !IsBusy;
+    }
+
+    private bool CanConfirmCopy()
+    {
+        return CanInteractWithCopyDialog() &&
+               !IsDiscoveringCopyTargets &&
+               _selectedCopyTarget is not null &&
+               !string.IsNullOrEmpty(CopyPassword) &&
+               HasCopySelection;
     }
 
     private bool CanMoveFolder()
@@ -611,6 +816,8 @@ public partial class MainVaultViewModel :
     private bool CanSave()
     {
         return !IsBusy &&
+               !IsCopySelectionMode &&
+               !IsCopyDialogOpen &&
                !HasEntryEditorValidationError &&
                HasSaveWork;
     }
@@ -709,6 +916,7 @@ public partial class MainVaultViewModel :
             nameof(IsEntryBrowserVisible));
 
         OpenEntryCommand.NotifyCanExecuteChanged();
+        EnterCopySelectionCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnHasEntryEditorValidationErrorChanged(
@@ -725,6 +933,8 @@ public partial class MainVaultViewModel :
     {
         OnPropertyChanged(
             nameof(HasNoEntries));
+
+        EnterCopySelectionCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnSearchTextChanged(
@@ -879,6 +1089,72 @@ public partial class MainVaultViewModel :
     {
         OnPropertyChanged(
             nameof(HasMoveDialogError));
+    }
+
+    partial void OnIsCopySelectionModeChanged(
+        bool value)
+    {
+        NotifyCommandStates();
+        OnPropertyChanged(nameof(CopySelectionSummaryText));
+    }
+
+    partial void OnCopySelectedEntryCountChanged(
+        int value)
+    {
+        OnPropertyChanged(nameof(HasCopySelection));
+        OnPropertyChanged(nameof(CopySelectionSummaryText));
+        OnPropertyChanged(nameof(CopyActionText));
+
+        OpenCopyDialogCommand.NotifyCanExecuteChanged();
+        ConfirmCopyCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnIsCopyDialogOpenChanged(
+        bool value)
+    {
+        NotifyCommandStates();
+        ConfirmCopyCommand.NotifyCanExecuteChanged();
+        CancelCopyDialogCommand.NotifyCanExecuteChanged();
+        ToggleCopyPasswordVisibilityCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnIsDiscoveringCopyTargetsChanged(
+        bool value)
+    {
+        OnPropertyChanged(nameof(HasNoCopyTargets));
+        ConfirmCopyCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnIsCopyingChanged(
+        bool value)
+    {
+        OnPropertyChanged(nameof(CopyActionText));
+        ConfirmCopyCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnCopyPasswordChanged(
+        string value)
+    {
+        CopyPasswordCaretIndex = Math.Clamp(
+            CopyPasswordCaretIndex,
+            0,
+            value.Length);
+
+        ClearCopyDialogError();
+        ConfirmCopyCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnIsCopyPasswordVisibleChanged(
+        bool value)
+    {
+        OnPropertyChanged(nameof(CopyPasswordMaskCharacter));
+        OnPropertyChanged(nameof(CopyPasswordVisibilityActionText));
+    }
+
+    partial void OnCopyDialogErrorMessageChanged(
+        string? value)
+    {
+        OnPropertyChanged(nameof(HasCopyDialogError));
     }
 
     partial void OnPasswordKdfDraftMemorySizeMiBChanged(
@@ -1188,6 +1464,266 @@ public partial class MainVaultViewModel :
         {
             MoveDialogErrorMessage =
                 exception.Message;
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanEnterCopySelection))]
+    private void EnterCopySelection()
+    {
+        _copySelectedEntryIds.Clear();
+        _copySelectedFolderIds.Clear();
+        IsCopySelectionMode = true;
+
+        RefreshBrowser();
+        RefreshCopySelectionState();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanChangeCopySelection))]
+    private void CancelCopySelection()
+    {
+        ExitCopySelection();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanChangeCopySelection))]
+    private void SelectAllVisibleForCopy()
+    {
+        foreach (VaultEntryListItemViewModel entry in EntryItems)
+        {
+            if (!entry.IsPendingDeletion)
+            {
+                _copySelectedEntryIds.Add(entry.EntryId);
+            }
+        }
+
+        RefreshCopySelectionState();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanChangeCopySelection))]
+    private void ClearCopySelection()
+    {
+        _copySelectedEntryIds.Clear();
+        _copySelectedFolderIds.Clear();
+        RefreshCopySelectionState();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanOpenCopyDialog))]
+    private async Task OpenCopyDialogAsync()
+    {
+        CopyPassword = string.Empty;
+        CopyPasswordCaretIndex = 0;
+        IsCopyPasswordVisible = false;
+        ClearCopyDialogError();
+
+        CopyTargetVaults.Clear();
+        _selectedCopyTarget = null;
+
+        OnPropertyChanged(nameof(HasCopyTargets));
+        OnPropertyChanged(nameof(HasNoCopyTargets));
+        OnPropertyChanged(nameof(SelectedCopyTargetText));
+
+        IsCopyDialogOpen = true;
+        IsDiscoveringCopyTargets = true;
+
+        try
+        {
+            string vaultRootPath =
+                _vaultLocationService.LoadVaultRootPath();
+
+            IReadOnlyList<VaultListItem> vaults =
+                await _vaultDiscoveryService.DiscoverAsync(
+                    vaultRootPath);
+
+            foreach (VaultListItem vault in vaults)
+            {
+                if (!PathsEqual(
+                        vault.DirectoryPath,
+                        VaultDirectoryPath))
+                {
+                    CopyTargetVaults.Add(
+                        new VaultCopyTargetItemViewModel(
+                            vault,
+                            SelectCopyTarget));
+                }
+            }
+
+            if (CopyTargetVaults.Count == 1)
+            {
+                SelectCopyTarget(
+                    CopyTargetVaults[0]);
+            }
+        }
+        catch (Exception exception)
+            when (exception is IOException or
+                UnauthorizedAccessException or
+                ArgumentException or
+                NotSupportedException)
+        {
+            CopyDialogErrorMessage =
+                "Existing vaults could not be discovered: " +
+                exception.Message;
+        }
+        finally
+        {
+            IsDiscoveringCopyTargets = false;
+
+            OnPropertyChanged(nameof(HasCopyTargets));
+            OnPropertyChanged(nameof(HasNoCopyTargets));
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanInteractWithCopyDialog))]
+    private void CancelCopyDialog()
+    {
+        CloseCopyDialog();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanInteractWithCopyDialog))]
+    private void ToggleCopyPasswordVisibility()
+    {
+        IsCopyPasswordVisible =
+            !IsCopyPasswordVisible;
+    }
+
+    [RelayCommand(CanExecute = nameof(CanConfirmCopy))]
+    private async Task ConfirmCopyAsync()
+    {
+        VaultCopyTargetItemViewModel target =
+            _selectedCopyTarget ??
+            throw new InvalidOperationException(
+                "No destination vault is selected.");
+
+        Guid[] selectedEntryIds =
+            [.. _copySelectedEntryIds];
+
+        Guid[] selectedFolderIds =
+            [.. _copySelectedFolderIds];
+
+        string submittedPassword = CopyPassword;
+        CopyPassword = string.Empty;
+
+        ClearCopyDialogError();
+        ClearError();
+
+        IsBusy = true;
+        IsCopying = true;
+
+        try
+        {
+            VaultCopyResult result =
+                await Task.Run(() =>
+                    _vaultCopyService.CopyAsync(
+                        _session,
+                        target.DirectoryPath,
+                        submittedPassword,
+                        selectedEntryIds,
+                        selectedFolderIds));
+
+            CloseCopyDialog();
+            ExitCopySelection();
+
+            SaveStatusText =
+                $"COPIED {result.EntryCount} " +
+                (result.EntryCount == 1
+                    ? "ENTRY"
+                    : "ENTRIES") +
+                $" TO {target.Name.ToUpperInvariant()}";
+        }
+        catch (CryptographicException)
+        {
+            CopyDialogErrorMessage =
+                "The destination password is incorrect, or the " +
+                "destination vault is damaged.";
+        }
+        catch (Exception exception)
+            when (IsExpectedOperationFailure(exception))
+        {
+            CopyDialogErrorMessage = exception.Message;
+        }
+        finally
+        {
+            submittedPassword = string.Empty;
+            IsCopying = false;
+            IsBusy = false;
+        }
+    }
+
+    public void SelectCopyTargetDirectory(
+        string directoryPath)
+    {
+        if (!IsCopyDialogOpen ||
+            IsCopying)
+        {
+            return;
+        }
+
+        try
+        {
+            string normalizedPath =
+                Path.GetFullPath(directoryPath);
+
+            if (PathsEqual(
+                    normalizedPath,
+                    VaultDirectoryPath))
+            {
+                CopyDialogErrorMessage =
+                    "The source vault cannot also be the destination.";
+
+                return;
+            }
+
+            if (!File.Exists(
+                    Path.Combine(
+                        normalizedPath,
+                        "vault.cripty")))
+            {
+                CopyDialogErrorMessage =
+                    "The selected folder does not contain an existing " +
+                    "Cripty vault.";
+
+                return;
+            }
+
+            VaultCopyTargetItemViewModel? existing =
+                CopyTargetVaults.FirstOrDefault(item =>
+                    PathsEqual(
+                        item.DirectoryPath,
+                        normalizedPath));
+
+            if (existing is null)
+            {
+                existing =
+                    new VaultCopyTargetItemViewModel(
+                        new VaultListItem(
+                            new DirectoryInfo(normalizedPath).Name,
+                            normalizedPath),
+                        SelectCopyTarget);
+
+                CopyTargetVaults.Add(existing);
+            }
+
+            SelectCopyTarget(existing);
+
+            OnPropertyChanged(nameof(HasCopyTargets));
+            OnPropertyChanged(nameof(HasNoCopyTargets));
+        }
+        catch (Exception exception)
+            when (exception is IOException or
+                UnauthorizedAccessException or
+                ArgumentException or
+                NotSupportedException)
+        {
+            CopyDialogErrorMessage =
+                "The selected destination could not be inspected: " +
+                exception.Message;
+        }
+    }
+
+    public void ReportCopyDialogError(
+        string errorMessage)
+    {
+        if (IsCopyDialogOpen)
+        {
+            CopyDialogErrorMessage = errorMessage;
         }
     }
 
@@ -2241,7 +2777,8 @@ public partial class MainVaultViewModel :
     {
         if (IsBusy ||
             IsDialogOpen ||
-            IsMoveDialogOpen)
+            IsMoveDialogOpen ||
+            IsCopyDialogOpen)
         {
             return;
         }
@@ -2321,6 +2858,23 @@ public partial class MainVaultViewModel :
         }
     }
 
+    private void ToggleCopyFolderSelection(
+        VaultFolderListItemViewModel folder)
+    {
+        if (!CanChangeCopySelection() ||
+            folder.FolderId is not Guid folderId)
+        {
+            return;
+        }
+
+        if (!_copySelectedFolderIds.Add(folderId))
+        {
+            _copySelectedFolderIds.Remove(folderId);
+        }
+
+        RefreshCopySelectionState();
+    }
+
     private bool IsSelectedFolderDescendantOf(
         Guid possibleAncestorId)
     {
@@ -2383,9 +2937,19 @@ public partial class MainVaultViewModel :
     private void SelectEntry(
         VaultEntryListItemViewModel entry)
     {
+        if (IsCopySelectionMode)
+        {
+            ToggleCopyEntrySelection(
+                entry.EntryId,
+                entry.IsPendingDeletion);
+
+            return;
+        }
+
         if (IsBusy ||
             IsDialogOpen ||
-            IsMoveDialogOpen)
+            IsMoveDialogOpen ||
+            IsCopyDialogOpen)
         {
             return;
         }
@@ -2413,9 +2977,19 @@ public partial class MainVaultViewModel :
     private void SelectFolderEntry(
         VaultFolderEntryListItemViewModel entry)
     {
+        if (IsCopySelectionMode)
+        {
+            ToggleCopyEntrySelection(
+                entry.EntryId,
+                entry.IsPendingDeletion);
+
+            return;
+        }
+
         if (IsBusy ||
             IsDialogOpen ||
-            IsMoveDialogOpen)
+            IsMoveDialogOpen ||
+            IsCopyDialogOpen)
         {
             return;
         }
@@ -2441,6 +3015,157 @@ public partial class MainVaultViewModel :
                 entry.FolderId,
             selectedEntryId:
                 entry.EntryId);
+    }
+
+    private void ToggleCopyEntrySelection(
+        Guid entryId,
+        bool isPendingDeletion)
+    {
+        if (!CanChangeCopySelection() ||
+            isPendingDeletion)
+        {
+            return;
+        }
+
+        if (!_copySelectedEntryIds.Add(entryId))
+        {
+            _copySelectedEntryIds.Remove(entryId);
+        }
+
+        RefreshCopySelectionState();
+    }
+
+    private void RefreshCopySelectionState()
+    {
+        foreach (VaultFolderListItemViewModel folder in
+                 FolderItems.OfType<
+                     VaultFolderListItemViewModel>())
+        {
+            folder.SetCopySelected(
+                folder.FolderId is Guid folderId &&
+                _copySelectedFolderIds.Contains(folderId));
+        }
+
+        foreach (VaultFolderEntryListItemViewModel entry in
+                 FolderItems.OfType<
+                     VaultFolderEntryListItemViewModel>())
+        {
+            entry.SetCopySelected(
+                _copySelectedEntryIds.Contains(entry.EntryId));
+        }
+
+        foreach (VaultEntryListItemViewModel entry in EntryItems)
+        {
+            entry.SetCopySelected(
+                _copySelectedEntryIds.Contains(entry.EntryId));
+        }
+
+        CopySelectedEntryCount =
+            GetEffectiveCopyEntryIds().Count;
+
+        OnPropertyChanged(nameof(CopySelectionSummaryText));
+        OnPropertyChanged(nameof(CopyActionText));
+
+        OpenCopyDialogCommand.NotifyCanExecuteChanged();
+        ConfirmCopyCommand.NotifyCanExecuteChanged();
+    }
+
+    private HashSet<Guid> GetEffectiveCopyEntryIds()
+    {
+        HashSet<Guid> effective =
+            new(_copySelectedEntryIds);
+
+        if (_copySelectedFolderIds.Count == 0)
+        {
+            return effective;
+        }
+
+        FolderDescriptor[] folders =
+            [.. _session.Folders];
+
+        HashSet<Guid> includedFolderIds =
+            new(_copySelectedFolderIds);
+
+        bool added;
+
+        do
+        {
+            added = false;
+
+            foreach (FolderDescriptor folder in folders)
+            {
+                if (folder.ParentFolderId is Guid parentId &&
+                    includedFolderIds.Contains(parentId))
+                {
+                    added |= includedFolderIds.Add(
+                        folder.FolderId);
+                }
+            }
+        }
+        while (added);
+
+        HashSet<Guid> pendingDeletionIds =
+            _session.EntriesPendingDeletion.ToHashSet();
+
+        effective.UnionWith(
+            _session.Entries
+                .Where(entry =>
+                    entry.FolderId is Guid folderId &&
+                    includedFolderIds.Contains(folderId) &&
+                    !pendingDeletionIds.Contains(entry.EntryId))
+                .Select(entry => entry.EntryId));
+
+        return effective;
+    }
+
+    private void ExitCopySelection()
+    {
+        _copySelectedEntryIds.Clear();
+        _copySelectedFolderIds.Clear();
+        CopySelectedEntryCount = 0;
+        IsCopySelectionMode = false;
+
+        RefreshBrowser();
+        RefreshCopySelectionState();
+    }
+
+    private void SelectCopyTarget(
+        VaultCopyTargetItemViewModel target)
+    {
+        if (!IsCopyDialogOpen ||
+            IsCopying)
+        {
+            return;
+        }
+
+        _selectedCopyTarget = target;
+
+        foreach (VaultCopyTargetItemViewModel item in
+                 CopyTargetVaults)
+        {
+            item.SetSelected(
+                ReferenceEquals(item, target));
+        }
+
+        ClearCopyDialogError();
+        OnPropertyChanged(nameof(SelectedCopyTargetText));
+        ConfirmCopyCommand.NotifyCanExecuteChanged();
+    }
+
+    private void CloseCopyDialog()
+    {
+        CopyPassword = string.Empty;
+        CopyPasswordCaretIndex = 0;
+        IsCopyPasswordVisible = false;
+        ClearCopyDialogError();
+
+        _selectedCopyTarget = null;
+        CopyTargetVaults.Clear();
+        IsCopyDialogOpen = false;
+
+        OnPropertyChanged(nameof(HasCopyTargets));
+        OnPropertyChanged(nameof(HasNoCopyTargets));
+        OnPropertyChanged(nameof(SelectedCopyTargetText));
     }
 
     private void RefreshBrowser(
@@ -2546,7 +3271,10 @@ public partial class MainVaultViewModel :
                 isExpandable: false,
                 isExpanded: false,
                 SelectFolder,
-                ToggleFolderExpansion));
+                ToggleFolderExpansion,
+                IsCopySelectionMode,
+                isCopySelected: false,
+                ToggleCopyFolderSelection));
 
         EntryDescriptor[] rootEntries =
             entries
@@ -2574,7 +3302,10 @@ public partial class MainVaultViewModel :
                     rootEntries.Length > 0,
                 isExpanded: _isRootExpanded,
                 SelectFolder,
-                ToggleFolderExpansion));
+                ToggleFolderExpansion,
+                IsCopySelectionMode,
+                isCopySelected: false,
+                ToggleCopyFolderSelection));
 
         HashSet<Guid> visited = [];
 
@@ -2598,7 +3329,10 @@ public partial class MainVaultViewModel :
                         depth: 1,
                         entrySessionStates[
                             entry.EntryId],
-                        SelectFolderEntry));
+                        SelectFolderEntry,
+                        IsCopySelectionMode,
+                        _copySelectedEntryIds.Contains(
+                            entry.EntryId)));
             }
         }
     }
@@ -2651,7 +3385,10 @@ public partial class MainVaultViewModel :
                                 depth + 1,
                                 entrySessionStates[
                                     entry.EntryId],
-                                SelectFolderEntry))
+                                SelectFolderEntry,
+                                IsCopySelectionMode,
+                                _copySelectedEntryIds.Contains(
+                                    entry.EntryId)))
                         .ToArray();
 
             bool hasChildFolders =
@@ -2676,7 +3413,11 @@ public partial class MainVaultViewModel :
                         _expandedFolderIds.Contains(
                             folder.FolderId),
                     SelectFolder,
-                    ToggleFolderExpansion));
+                    ToggleFolderExpansion,
+                    IsCopySelectionMode,
+                    _copySelectedFolderIds.Contains(
+                        folder.FolderId),
+                    ToggleCopyFolderSelection));
 
             if (_expandedFolderIds.Contains(
                     folder.FolderId))
@@ -2867,7 +3608,10 @@ public partial class MainVaultViewModel :
                     entry.ModifiedUtc,
                     entrySessionStates[
                         entry.EntryId],
-                    SelectEntry));
+                    SelectEntry,
+                    IsCopySelectionMode,
+                    _copySelectedEntryIds.Contains(
+                        entry.EntryId)));
         }
 
         _selectedEntry =
@@ -3250,6 +3994,14 @@ public partial class MainVaultViewModel :
         }
     }
 
+    private void ClearCopyDialogError()
+    {
+        if (CopyDialogErrorMessage is not null)
+        {
+            CopyDialogErrorMessage = null;
+        }
+    }
+
     private void NotifyCommandStates()
     {
         NewEntryCommand.NotifyCanExecuteChanged();
@@ -3274,6 +4026,14 @@ public partial class MainVaultViewModel :
         RestoreDefaultPasswordKdfSettingsCommand.NotifyCanExecuteChanged();
         ApplyPasswordKdfSettingsCommand.NotifyCanExecuteChanged();
         ConfirmMoveDialogCommand.NotifyCanExecuteChanged();
+        EnterCopySelectionCommand.NotifyCanExecuteChanged();
+        CancelCopySelectionCommand.NotifyCanExecuteChanged();
+        SelectAllVisibleForCopyCommand.NotifyCanExecuteChanged();
+        ClearCopySelectionCommand.NotifyCanExecuteChanged();
+        OpenCopyDialogCommand.NotifyCanExecuteChanged();
+        CancelCopyDialogCommand.NotifyCanExecuteChanged();
+        ToggleCopyPasswordVisibilityCommand.NotifyCanExecuteChanged();
+        ConfirmCopyCommand.NotifyCanExecuteChanged();
     }
 
     private static string FormatCharacterCount(
@@ -3300,6 +4060,26 @@ public partial class MainVaultViewModel :
             (int)Math.Round(
                 value,
                 MidpointRounding.AwayFromZero));
+    }
+
+    private static bool PathsEqual(
+        string first,
+        string second)
+    {
+        string normalizedFirst =
+            Path.TrimEndingDirectorySeparator(
+                Path.GetFullPath(first));
+
+        string normalizedSecond =
+            Path.TrimEndingDirectorySeparator(
+                Path.GetFullPath(second));
+
+        return string.Equals(
+            normalizedFirst,
+            normalizedSecond,
+            OperatingSystem.IsWindows()
+                ? StringComparison.OrdinalIgnoreCase
+                : StringComparison.Ordinal);
     }
 
     private static bool IsExpectedOperationFailure(

@@ -372,55 +372,37 @@ public sealed class VaultSession : IAsyncDisposable
     {
         return MutateState(() =>
         {
-            if (string.IsNullOrWhiteSpace(name))
-            {
-                throw new ArgumentException(
-                    "The entry name cannot be empty.",
-                    nameof(name));
-            }
-
-            Guid entryId = Guid.NewGuid();
-
-            List<Guid> assignedTagIds =
-                tagIds?.ToList() ?? [];
-
-            List<EntryField> entryFields =
-                fields?.ToList() ?? [];
-
             DateTimeOffset createdUtc =
                 DateTimeOffset.UtcNow;
 
-            EntryDescriptor descriptor = new(
-                entryId,
+            return CreateEntryCore(
                 name,
                 folderId,
-                assignedTagIds,
-                revision: 0,
+                tagIds,
+                fields,
                 createdUtc,
-                modifiedUtc: createdUtc);
-
-            VaultEntry entry = new(
-                StorageSchemaVersions.CurrentEntry,
-                entryId,
-                revision: 0,
-                entryFields);
-
-            // Validates the folder, tags, duplicate ID,
-            // and duplicate tag assignments.
-            Manifest.AddEntryDescriptor(
-                descriptor);
-
-            _pendingEntryChanges.Add(
-                entryId,
-                new PendingEntryChange(
-                    entry,
-                    EntryChangeKind.New));
-
-            RecordManifestChange(
-                rebuildIndex: true);
-
-            return entry;
+                createdUtc,
+                preserveTimestampsOnFirstSave: false);
         });
+    }
+
+    internal VaultEntry CreateCopiedEntry(
+        string name,
+        Guid? folderId,
+        IEnumerable<Guid>? tagIds,
+        IEnumerable<EntryField>? fields,
+        DateTimeOffset createdUtc,
+        DateTimeOffset modifiedUtc)
+    {
+        return MutateState(() =>
+            CreateEntryCore(
+                name,
+                folderId,
+                tagIds,
+                fields,
+                createdUtc,
+                modifiedUtc,
+                preserveTimestampsOnFirstSave: true));
     }
 
     public async Task<VaultEntry> GetEntryAsync(
@@ -1162,6 +1144,7 @@ public sealed class VaultSession : IAsyncDisposable
             checked(entry.Revision + 1);
 
         DateTimeOffset modifiedUtc =
+            pendingChange.FirstCommitModifiedUtc ??
             DateTimeOffset.UtcNow;
 
         // Protect against the system clock moving backwards.
@@ -1361,6 +1344,76 @@ public sealed class VaultSession : IAsyncDisposable
     }
 
     // State and synchronization helpers
+
+    private VaultEntry CreateEntryCore(
+        string name,
+        Guid? folderId,
+        IEnumerable<Guid>? tagIds,
+        IEnumerable<EntryField>? fields,
+        DateTimeOffset createdUtc,
+        DateTimeOffset modifiedUtc,
+        bool preserveTimestampsOnFirstSave)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            throw new ArgumentException(
+                "The entry name cannot be empty.",
+                nameof(name));
+        }
+
+        if (createdUtc == default ||
+            modifiedUtc == default ||
+            createdUtc.Offset != TimeSpan.Zero ||
+            modifiedUtc.Offset != TimeSpan.Zero ||
+            modifiedUtc < createdUtc)
+        {
+            throw new ArgumentException(
+                "Entry timestamps must be valid UTC values, with " +
+                "the modification time on or after creation.");
+        }
+
+        Guid entryId = Guid.NewGuid();
+
+        List<Guid> assignedTagIds =
+            tagIds?.ToList() ?? [];
+
+        List<EntryField> entryFields =
+            fields?.ToList() ?? [];
+
+        EntryDescriptor descriptor = new(
+            entryId,
+            name,
+            folderId,
+            assignedTagIds,
+            revision: 0,
+            createdUtc,
+            modifiedUtc);
+
+        VaultEntry entry = new(
+            StorageSchemaVersions.CurrentEntry,
+            entryId,
+            revision: 0,
+            entryFields);
+
+        // Validates the folder, tags, duplicate ID,
+        // and duplicate tag assignments.
+        Manifest.AddEntryDescriptor(
+            descriptor);
+
+        _pendingEntryChanges.Add(
+            entryId,
+            new PendingEntryChange(
+                entry,
+                EntryChangeKind.New,
+                preserveTimestampsOnFirstSave
+                    ? modifiedUtc
+                    : null));
+
+        RecordManifestChange(
+            rebuildIndex: true);
+
+        return entry;
+    }
 
     private void ReplaceEntryCore(
         VaultEntry modifiedEntry)
@@ -1757,11 +1810,17 @@ public sealed class VaultSession : IAsyncDisposable
         public IReadOnlyCollection<Guid> ObsoleteBlobIds =>
             _obsoleteBlobIds;
 
+        public DateTimeOffset? FirstCommitModifiedUtc
+        {
+            get;
+        }
+
         private readonly HashSet<Guid> _obsoleteBlobIds = [];
 
         public PendingEntryChange(
             VaultEntry workingEntry,
-            EntryChangeKind kind)
+            EntryChangeKind kind,
+            DateTimeOffset? firstCommitModifiedUtc = null)
         {
             ArgumentNullException.ThrowIfNull(
                 workingEntry);
@@ -1778,6 +1837,8 @@ public sealed class VaultSession : IAsyncDisposable
 
             WorkingEntry = workingEntry;
             Kind = kind;
+            FirstCommitModifiedUtc =
+                firstCommitModifiedUtc;
         }
 
         public void ReplaceWorkingEntry(

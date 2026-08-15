@@ -882,7 +882,7 @@
                                 </Border>
 
                                 <Button Grid.Column="2"
-                                        Classes="ghost"
+                                        Classes="selection-action"
                                         Command="{Binding EnterCopySelectionCommand}"
                                         Margin="0,0,8,0"
                                         VerticalAlignment="Center">
@@ -906,7 +906,7 @@
                                 </Button>
 
                                 <Button Grid.Column="4"
-                                        Classes="ghost"
+                                        Classes="info-action"
                                         Command="{Binding OpenEntryCommand}"
                                         Margin="0,0,8,0"
                                         VerticalAlignment="Center">

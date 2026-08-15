@@ -627,7 +627,7 @@
                                    LetterSpacing="1" />
                     </Button>
 
-                    <Button Classes="ghost"
+                    <Button Classes="info-action"
                             Command="{Binding CloseCommand}">
 
                         <TextBlock Text="BACK TO ENTRIES"

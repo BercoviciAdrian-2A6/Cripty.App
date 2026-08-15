@@ -322,6 +322,174 @@
                 Value="Transparent" />
     </Style>
 
+    <!-- Information/navigation action button -->
+
+    <Style Selector="Button.info-action">
+        <Setter Property="Background"
+                Value="#0B2030" />
+        <Setter Property="Foreground"
+                Value="#A9DCF9" />
+        <Setter Property="BorderBrush"
+                Value="#2E7098" />
+    </Style>
+
+    <Style Selector="Button.info-action /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Foreground"
+                Value="#A9DCF9" />
+    </Style>
+
+    <Style Selector="Button.info-action TextBlock">
+        <Setter Property="Foreground"
+                Value="#A9DCF9" />
+    </Style>
+
+    <Style Selector="Button.info-action:pointerover">
+        <Setter Property="Background"
+                Value="#12344A" />
+        <Setter Property="Foreground"
+                Value="#D7EEFC" />
+        <Setter Property="BorderBrush"
+                Value="{StaticResource CriptyInfoBrush}" />
+    </Style>
+
+    <Style Selector="Button.info-action:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background"
+                Value="#12344A" />
+        <Setter Property="Foreground"
+                Value="#D7EEFC" />
+    </Style>
+
+    <Style Selector="Button.info-action:pointerover TextBlock">
+        <Setter Property="Foreground"
+                Value="#D7EEFC" />
+    </Style>
+
+    <Style Selector="Button.info-action:pressed">
+        <Setter Property="Background"
+                Value="#0F2C40" />
+        <Setter Property="Foreground"
+                Value="#C5E5F9" />
+        <Setter Property="BorderBrush"
+                Value="#4FA9E3" />
+    </Style>
+
+    <Style Selector="Button.info-action:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background"
+                Value="#0F2C40" />
+        <Setter Property="Foreground"
+                Value="#C5E5F9" />
+    </Style>
+
+    <Style Selector="Button.info-action:pressed TextBlock">
+        <Setter Property="Foreground"
+                Value="#C5E5F9" />
+    </Style>
+
+    <Style Selector="Button.info-action:disabled">
+        <Setter Property="Background"
+                Value="#0D1A13" />
+        <Setter Property="Foreground"
+                Value="{StaticResource CriptyTextMutedBrush}" />
+        <Setter Property="BorderBrush"
+                Value="{StaticResource CriptyBorderBrush}" />
+    </Style>
+
+    <Style Selector="Button.info-action:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background"
+                Value="#0D1A13" />
+        <Setter Property="Foreground"
+                Value="{StaticResource CriptyTextMutedBrush}" />
+    </Style>
+
+    <Style Selector="Button.info-action:disabled TextBlock">
+        <Setter Property="Foreground"
+                Value="{StaticResource CriptyTextMutedBrush}" />
+    </Style>
+
+    <!-- Neutral selection-mode action button -->
+
+    <Style Selector="Button.selection-action">
+        <Setter Property="Background"
+                Value="#13201A" />
+        <Setter Property="Foreground"
+                Value="#E5F2E9" />
+        <Setter Property="BorderBrush"
+                Value="#587064" />
+    </Style>
+
+    <Style Selector="Button.selection-action /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Foreground"
+                Value="#E5F2E9" />
+    </Style>
+
+    <Style Selector="Button.selection-action TextBlock">
+        <Setter Property="Foreground"
+                Value="#E5F2E9" />
+    </Style>
+
+    <Style Selector="Button.selection-action:pointerover">
+        <Setter Property="Background"
+                Value="#203128" />
+        <Setter Property="Foreground"
+                Value="#F4FAF6" />
+        <Setter Property="BorderBrush"
+                Value="#89A296" />
+    </Style>
+
+    <Style Selector="Button.selection-action:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background"
+                Value="#203128" />
+        <Setter Property="Foreground"
+                Value="#F4FAF6" />
+    </Style>
+
+    <Style Selector="Button.selection-action:pointerover TextBlock">
+        <Setter Property="Foreground"
+                Value="#F4FAF6" />
+    </Style>
+
+    <Style Selector="Button.selection-action:pressed">
+        <Setter Property="Background"
+                Value="#182820" />
+        <Setter Property="Foreground"
+                Value="#EDF6F0" />
+        <Setter Property="BorderBrush"
+                Value="#718B7E" />
+    </Style>
+
+    <Style Selector="Button.selection-action:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background"
+                Value="#182820" />
+        <Setter Property="Foreground"
+                Value="#EDF6F0" />
+    </Style>
+
+    <Style Selector="Button.selection-action:pressed TextBlock">
+        <Setter Property="Foreground"
+                Value="#EDF6F0" />
+    </Style>
+
+    <Style Selector="Button.selection-action:disabled">
+        <Setter Property="Background"
+                Value="#0D1A13" />
+        <Setter Property="Foreground"
+                Value="{StaticResource CriptyTextMutedBrush}" />
+        <Setter Property="BorderBrush"
+                Value="{StaticResource CriptyBorderBrush}" />
+    </Style>
+
+    <Style Selector="Button.selection-action:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background"
+                Value="#0D1A13" />
+        <Setter Property="Foreground"
+                Value="{StaticResource CriptyTextMutedBrush}" />
+    </Style>
+
+    <Style Selector="Button.selection-action:disabled TextBlock">
+        <Setter Property="Foreground"
+                Value="{StaticResource CriptyTextMutedBrush}" />
+    </Style>
+
     <!-- Disabled button -->
 
     <Style Selector="Button:disabled">

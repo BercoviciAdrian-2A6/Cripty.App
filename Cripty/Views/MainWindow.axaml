@@ -13,7 +13,9 @@
         MinWidth="900"
         MinHeight="600"
         WindowStartupLocation="CenterScreen"
-        Title="Cripty">
+        Icon="avares://Cripty/Assets/cripty.ico"
+        Title="Cripty"
+        >
 
     <Design.DataContext>
         <vm:MainViewModel />

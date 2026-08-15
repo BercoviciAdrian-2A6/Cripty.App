@@ -47,6 +47,7 @@ internal sealed class VaultKeyRotationService
         byte[] currentRootKey,
         string newPassword,
         Argon2idParameters? newKdfParameters,
+        IProgress<VaultPasswordChangeProgress>? progress,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(currentManifest);
@@ -106,7 +107,26 @@ internal sealed class VaultKeyRotationService
 
         try
         {
+            ReportProgress(
+                progress,
+                0,
+                VaultPasswordChangeStage.GeneratingRootKey,
+                currentManifest.Entries.Count,
+                totalBlobs: 0);
+
             VaultRootKeyGenerator.Generate(rotatedRootKey);
+
+            ReportProgress(
+                progress,
+                10,
+                VaultPasswordChangeStage.PreparingVault,
+                currentManifest.Entries.Count,
+                totalBlobs: 0);
+
+            RotationWorkEstimate workEstimate =
+                EstimateRotationWork(
+                    normalizedVaultPath,
+                    currentManifest);
 
             VaultFile rotatedVaultFile =
                 _vaultFileCodec.Create(
@@ -122,6 +142,16 @@ internal sealed class VaultKeyRotationService
                 .ConfigureAwait(false);
 
             Dictionary<Guid, long> migratedBlobLengths = [];
+            long processedBytes = 0;
+            int processedEntries = 0;
+            int processedBlobs = 0;
+
+            ReportProgress(
+                progress,
+                10,
+                VaultPasswordChangeStage.ReencryptingContent,
+                workEstimate.TotalEntries,
+                workEstimate.TotalBlobs);
 
             foreach (EntryDescriptor descriptor in
                      currentManifest.Entries)
@@ -149,12 +179,27 @@ internal sealed class VaultKeyRotationService
                         cancellationToken)
                     .ConfigureAwait(false);
 
+                processedEntries++;
+                processedBytes = AddWithoutOverflow(
+                    processedBytes,
+                    GetEntryFileLength(
+                        normalizedVaultPath,
+                        descriptor.EntryId));
+
+                ReportContentProgress(
+                    progress,
+                    workEstimate,
+                    processedBytes,
+                    processedEntries,
+                    processedBlobs);
+
                 foreach (BlobFieldValue blob in
                          entry.Fields
                              .Select(field => field.Value)
                              .OfType<BlobFieldValue>())
                 {
-                    await MigrateBlobOnceAsync(
+                    bool wasMigrated =
+                        await MigrateBlobOnceAsync(
                             normalizedVaultPath,
                             stagingPath,
                             rotatedManifest.VaultId,
@@ -164,8 +209,34 @@ internal sealed class VaultKeyRotationService
                             migratedBlobLengths,
                             cancellationToken)
                         .ConfigureAwait(false);
+
+                    if (wasMigrated)
+                    {
+                        processedBlobs++;
+                        processedBytes = AddWithoutOverflow(
+                            processedBytes,
+                            GetBlobFileLength(
+                                normalizedVaultPath,
+                                blob.BlobId));
+
+                        ReportContentProgress(
+                            progress,
+                            workEstimate,
+                            processedBytes,
+                            processedEntries,
+                            processedBlobs);
+                    }
                 }
             }
+
+            ReportProgress(
+                progress,
+                95,
+                VaultPasswordChangeStage.Verifying,
+                workEstimate.TotalEntries,
+                workEstimate.TotalBlobs,
+                processedEntries,
+                processedBlobs);
 
             await ValidateStagedVaultAsync(
                     stagingPath,
@@ -175,6 +246,15 @@ internal sealed class VaultKeyRotationService
                     migratedBlobLengths,
                     cancellationToken)
                 .ConfigureAwait(false);
+
+            ReportProgress(
+                progress,
+                98,
+                VaultPasswordChangeStage.Publishing,
+                workEstimate.TotalEntries,
+                workEstimate.TotalBlobs,
+                processedEntries,
+                processedBlobs);
 
             // Do not observe cancellation between the two directory moves.
             // Once publication starts it must either complete or restore the
@@ -215,6 +295,15 @@ internal sealed class VaultKeyRotationService
             // password change.
             TryDeleteDirectory(rollbackPath);
             existingVaultMoved = false;
+
+            ReportProgress(
+                progress,
+                100,
+                VaultPasswordChangeStage.Completed,
+                workEstimate.TotalEntries,
+                workEstimate.TotalBlobs,
+                processedEntries,
+                processedBlobs);
 
             return new VaultKeyRotationResult(
                 rotatedVaultFile,
@@ -283,7 +372,7 @@ internal sealed class VaultKeyRotationService
         return entry;
     }
 
-    private async Task MigrateBlobOnceAsync(
+    private async Task<bool> MigrateBlobOnceAsync(
         string sourceVaultPath,
         string stagingVaultPath,
         Guid vaultId,
@@ -304,7 +393,7 @@ internal sealed class VaultKeyRotationService
                     "conflicting lengths.");
             }
 
-            return;
+            return false;
         }
 
         BlobFile blobFile =
@@ -349,6 +438,8 @@ internal sealed class VaultKeyRotationService
             migratedBlobLengths.Add(
                 blob.BlobId,
                 blob.Length);
+
+            return true;
         }
         finally
         {
@@ -356,6 +447,128 @@ internal sealed class VaultKeyRotationService
                 plaintext);
         }
     }
+
+    private static RotationWorkEstimate EstimateRotationWork(
+        string vaultDirectoryPath,
+        VaultManifest manifest)
+    {
+        long totalBytes = 0;
+
+        foreach (EntryDescriptor descriptor in manifest.Entries)
+        {
+            totalBytes = AddWithoutOverflow(
+                totalBytes,
+                GetEntryFileLength(
+                    vaultDirectoryPath,
+                    descriptor.EntryId));
+        }
+
+        string blobsDirectoryPath = Path.Combine(
+            vaultDirectoryPath,
+            BlobFileStore.BlobsDirectoryName);
+
+        string[] blobFilePaths = Directory.Exists(blobsDirectoryPath)
+            ? Directory.GetFiles(
+                blobsDirectoryPath,
+                "*" + BlobFileStore.BlobFileExtension,
+                SearchOption.TopDirectoryOnly)
+            : [];
+
+        foreach (string blobFilePath in blobFilePaths)
+        {
+            totalBytes = AddWithoutOverflow(
+                totalBytes,
+                new FileInfo(blobFilePath).Length);
+        }
+
+        return new RotationWorkEstimate(
+            totalBytes,
+            manifest.Entries.Count,
+            blobFilePaths.Length);
+    }
+
+    private static long GetEntryFileLength(
+        string vaultDirectoryPath,
+        Guid entryId)
+    {
+        return new FileInfo(
+            Path.Combine(
+                vaultDirectoryPath,
+                EntryFileStore.EntriesDirectoryName,
+                entryId.ToString("D") +
+                EntryFileStore.EntryFileExtension))
+            .Length;
+    }
+
+    private static long GetBlobFileLength(
+        string vaultDirectoryPath,
+        Guid blobId)
+    {
+        return new FileInfo(
+            Path.Combine(
+                vaultDirectoryPath,
+                BlobFileStore.BlobsDirectoryName,
+                blobId.ToString("D") +
+                BlobFileStore.BlobFileExtension))
+            .Length;
+    }
+
+    private static long AddWithoutOverflow(
+        long left,
+        long right)
+    {
+        return left > long.MaxValue - right
+            ? long.MaxValue
+            : left + right;
+    }
+
+    private static void ReportContentProgress(
+        IProgress<VaultPasswordChangeProgress>? progress,
+        RotationWorkEstimate estimate,
+        long processedBytes,
+        int processedEntries,
+        int processedBlobs)
+    {
+        double completedFraction = estimate.TotalBytes > 0
+            ? Math.Clamp(
+                (double)processedBytes / estimate.TotalBytes,
+                0,
+                1)
+            : 1;
+
+        ReportProgress(
+            progress,
+            10 + (85 * completedFraction),
+            VaultPasswordChangeStage.ReencryptingContent,
+            estimate.TotalEntries,
+            estimate.TotalBlobs,
+            processedEntries,
+            processedBlobs);
+    }
+
+    private static void ReportProgress(
+        IProgress<VaultPasswordChangeProgress>? progress,
+        double percentage,
+        VaultPasswordChangeStage stage,
+        int totalEntries,
+        int totalBlobs,
+        int processedEntries = 0,
+        int processedBlobs = 0)
+    {
+        progress?.Report(
+            new VaultPasswordChangeProgress(
+                Math.Clamp(percentage, 0, 100),
+                stage,
+                processedEntries,
+                totalEntries,
+                processedBlobs,
+                totalBlobs));
+    }
+
+    private sealed record RotationWorkEstimate(
+        long TotalBytes,
+        int TotalEntries,
+        int TotalBlobs);
 
     private async Task ValidateStagedVaultAsync(
         string stagingVaultPath,

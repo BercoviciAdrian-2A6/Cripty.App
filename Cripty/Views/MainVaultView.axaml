@@ -1311,6 +1311,7 @@
                         <Grid ColumnDefinitions="*,Auto,Auto">
                             <TextBox Text="{Binding NewPassword, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                      CaretIndex="{Binding NewPasswordCaretIndex, Mode=TwoWay}"
+                                     IsEnabled="{Binding !IsBusy}"
                                      PasswordChar="{Binding NewPasswordMaskCharacter}" />
 
                             <Button Grid.Column="1"
@@ -1356,6 +1357,7 @@
                         <Grid ColumnDefinitions="*,Auto,Auto">
                             <TextBox Text="{Binding ConfirmNewPassword, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                      CaretIndex="{Binding ConfirmNewPasswordCaretIndex, Mode=TwoWay}"
+                                     IsEnabled="{Binding !IsBusy}"
                                      PasswordChar="{Binding ConfirmNewPasswordMaskCharacter}" />
 
                             <Button Grid.Column="1"
@@ -1437,11 +1439,37 @@
                             BorderThickness="1"
                             CornerRadius="3">
 
-                        <TextBlock Text="Only the password-protected key envelope changes. The manifest and encrypted entry files remain unchanged."
-                                   FontSize="9"
-                                   LineHeight="14"
-                                   Foreground="{StaticResource CriptyTextMutedBrush}"
-                                   TextWrapping="Wrap" />
+                        <Grid>
+                            <TextBlock IsVisible="{Binding !IsChangingPassword}"
+                                       Text="A new root key will replace the current one. Every entry and blob is re-encrypted, while the vault ID, folders, tags, and entry organization are preserved."
+                                       FontSize="9"
+                                       LineHeight="14"
+                                       Foreground="{StaticResource CriptyTextMutedBrush}"
+                                       TextWrapping="Wrap" />
+
+                            <StackPanel IsVisible="{Binding IsChangingPassword}"
+                                        Spacing="8">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <TextBlock Text="{Binding PasswordChangeProgressStatusText}"
+                                               FontSize="9"
+                                               LineHeight="14"
+                                               Foreground="{StaticResource CriptyTextBrush}"
+                                               TextWrapping="Wrap" />
+
+                                    <TextBlock Grid.Column="1"
+                                               Margin="12,0,0,0"
+                                               Text="{Binding PasswordChangeProgressPercentageText}"
+                                               FontSize="10"
+                                               FontWeight="SemiBold"
+                                               Foreground="{StaticResource CriptyAccentBrush}" />
+                                </Grid>
+
+                                <ProgressBar Height="5"
+                                             Minimum="0"
+                                             Maximum="100"
+                                             Value="{Binding PasswordChangeProgressPercentage}" />
+                            </StackPanel>
+                        </Grid>
                     </Border>
 
                     <Border IsVisible="{Binding HasPasswordChangeError}"

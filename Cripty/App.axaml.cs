@@ -18,7 +18,8 @@ public partial class App : Avalonia.Application
         if (ApplicationLifetime is
             IClassicDesktopStyleApplicationLifetime desktop)
         {
-            MainViewModel mainViewModel = new();
+            MainViewModel mainViewModel =
+                new(() => desktop.Shutdown());
 
             desktop.MainWindow = new MainWindow
             {

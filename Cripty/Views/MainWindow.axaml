@@ -21,9 +21,80 @@
         <vm:MainViewModel />
     </Design.DataContext>
 
-    <ContentControl Content="{Binding CurrentPage}"
-                    HorizontalContentAlignment="Stretch"
-                    VerticalContentAlignment="Stretch"
-                    ClipToBounds="True" />
+    <Grid>
+        <ContentControl Content="{Binding CurrentPage}"
+                        HorizontalContentAlignment="Stretch"
+                        VerticalContentAlignment="Stretch"
+                        ClipToBounds="True" />
+
+        <Border ZIndex="200"
+                IsVisible="{Binding IsInactivityWarningVisible}"
+                Background="#F207110D">
+
+            <Border Width="560"
+                    Margin="32"
+                    Padding="34"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Background="{StaticResource CriptySurfaceBrush}"
+                    BorderBrush="{StaticResource CriptyDangerBrush}"
+                    BorderThickness="1"
+                    CornerRadius="5">
+
+                <StackPanel Spacing="18">
+                    <StackPanel Spacing="7">
+                        <TextBlock Text="No interaction with Cripty"
+                                   HorizontalAlignment="Center"
+                                   TextAlignment="Center"
+                                   FontSize="20"
+                                   FontWeight="SemiBold"
+                                   LetterSpacing="1.2"
+                                   Foreground="{StaticResource CriptyDangerBrush}" />
+
+                        <TextBlock Text="{Binding InactivityWarningStatusText}"
+                                   HorizontalAlignment="Center"
+                                   TextAlignment="Center"
+                                   FontSize="12"
+                                   LineHeight="18"
+                                   Foreground="{StaticResource CriptyTextMutedBrush}"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+
+                    <TextBlock Text="{Binding InactivityWarningCountdownText}"
+                               HorizontalAlignment="Center"
+                               FontSize="42"
+                               FontWeight="SemiBold"
+                               LetterSpacing="2"
+                               Foreground="{StaticResource CriptyTextBrush}" />
+
+                    <ProgressBar Height="6"
+                                 Minimum="0"
+                                 Maximum="100"
+                                 Foreground="{StaticResource CriptyDangerBrush}"
+                                 Value="{Binding InactivityWarningRemainingPercentage}" />
+
+                    <TextBlock Text="Any unsaved folders, tags, entries, or edits will be discarded. No save is attempted by the inactivity lock."
+                               HorizontalAlignment="Center"
+                               TextAlignment="Center"
+                               FontSize="10"
+                               LineHeight="15"
+                               Foreground="{StaticResource CriptyTextMutedBrush}"
+                               TextWrapping="Wrap" />
+
+                    <Button Classes="primary"
+                            IsVisible="{Binding IsInactivityWarningActionAvailable}"
+                            Command="{Binding KeepVaultOpenCommand}"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Center">
+
+                        <TextBlock Text="KEEP VAULT OPEN"
+                                   FontSize="10"
+                                   FontWeight="SemiBold"
+                                   LetterSpacing="1" />
+                    </Button>
+                </StackPanel>
+            </Border>
+        </Border>
+    </Grid>
 
 </Window>

@@ -68,6 +68,8 @@ public sealed class VaultKeyRotationTests
         Guid blobId = Guid.NewGuid();
         long generationAfterRotation;
 
+        List<VaultPasswordChangeProgress> progressReports = [];
+
         VaultFileStore vaultFileStore = new();
         EntryFileStore entryFileStore = new();
         BlobFileStore blobFileStore = new();
@@ -157,10 +159,14 @@ public sealed class VaultKeyRotationTests
 
                 await session.ChangePasswordAsync(
                     NewPassword,
-                    ChangedKdfParameters);
+                    ChangedKdfParameters,
+                    new InlineProgress<VaultPasswordChangeProgress>(
+                        progressReports.Add));
 
                 generationAfterRotation =
                     session.ManifestGeneration;
+
+                AssertPasswordChangeProgress(progressReports);
 
                 Assert.AreEqual(
                     generationBeforeRotation + 1,
@@ -341,6 +347,61 @@ public sealed class VaultKeyRotationTests
         finally
         {
             CryptographicOperations.ZeroMemory(restored);
+        }
+    }
+
+    private static void AssertPasswordChangeProgress(
+        IReadOnlyList<VaultPasswordChangeProgress> reports)
+    {
+        Assert.IsTrue(reports.Count >= 5);
+
+        Assert.AreEqual(
+            0d,
+            reports[0].Percentage);
+
+        Assert.AreEqual(
+            VaultPasswordChangeStage.GeneratingRootKey,
+            reports[0].Stage);
+
+        Assert.IsTrue(reports.Any(report =>
+            report.Percentage == 10 &&
+            report.Stage ==
+                VaultPasswordChangeStage.PreparingVault));
+
+        Assert.IsTrue(reports.Any(report =>
+            report.Percentage > 10 &&
+            report.Percentage < 95 &&
+            report.Stage ==
+                VaultPasswordChangeStage.ReencryptingContent));
+
+        Assert.IsTrue(reports.Any(report =>
+            report.Percentage == 95 &&
+            report.Stage ==
+                VaultPasswordChangeStage.Verifying));
+
+        Assert.AreEqual(
+            100d,
+            reports[^1].Percentage);
+
+        Assert.AreEqual(
+            VaultPasswordChangeStage.Completed,
+            reports[^1].Stage);
+
+        for (int index = 1; index < reports.Count; index++)
+        {
+            Assert.IsTrue(
+                reports[index].Percentage >=
+                reports[index - 1].Percentage,
+                "Password-change progress must not move backwards.");
+        }
+    }
+
+    private sealed class InlineProgress<T>(
+        Action<T> report) : IProgress<T>
+    {
+        public void Report(T value)
+        {
+            report(value);
         }
     }
 }

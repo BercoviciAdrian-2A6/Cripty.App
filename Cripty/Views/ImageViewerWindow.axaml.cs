@@ -16,6 +16,7 @@ public partial class ImageViewerWindow : Window
     public ImageViewerWindow()
     {
         InitializeComponent();
+        global::Cripty.Services.CriptyInteraction.Attach(this);
     }
 
     public ImageViewerWindow(

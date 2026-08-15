@@ -2,6 +2,8 @@ using System;
 using System.IO;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using Cripty.Application.Vaults;
 using Cripty.Cryptography.Keys;
 using Cripty.Models;
@@ -9,14 +11,20 @@ using Cripty.Services;
 
 namespace Cripty.ViewModels;
 
-public sealed class MainViewModel :
+public sealed partial class MainViewModel :
     ViewModelBase,
     IDisposable
 {
     private readonly VaultSelectionViewModel
         _vaultSelectionViewModel;
 
+    private readonly Action _shutdownApplication;
+    private readonly VaultInactivityService
+        _inactivityService;
+
     private VaultSession? _activeSession;
+    private MainVaultViewModel? _activeVaultViewModel;
+    private bool _isInactivityShutdown;
     private bool _disposed;
 
     private ViewModelBase _currentPage = null!;
@@ -31,8 +39,57 @@ public sealed class MainViewModel :
                 value);
     }
 
-    public MainViewModel()
+    [ObservableProperty]
+    public partial bool IsInactivityWarningVisible
     {
+        get;
+        private set;
+    }
+
+    [ObservableProperty]
+    public partial bool IsInactivityWarningActionAvailable
+    {
+        get;
+        private set;
+    }
+
+    [ObservableProperty]
+    public partial string InactivityWarningStatusText
+    {
+        get;
+        private set;
+    } = string.Empty;
+
+    [ObservableProperty]
+    public partial string InactivityWarningCountdownText
+    {
+        get;
+        private set;
+    } = "01:00";
+
+    [ObservableProperty]
+    public partial double InactivityWarningRemainingPercentage
+    {
+        get;
+        private set;
+    }
+
+    public MainViewModel()
+        : this(shutdownApplication: null)
+    {
+    }
+
+    public MainViewModel(
+        Action? shutdownApplication)
+    {
+        _shutdownApplication =
+            shutdownApplication ?? (() => { });
+
+        _inactivityService =
+            new VaultInactivityService(
+                UpdateInactivityWarning,
+                HandleInactivityTimeoutAsync);
+
         _vaultSelectionViewModel =
             new VaultSelectionViewModel(
                 new VaultLocationService(),
@@ -141,11 +198,19 @@ public sealed class MainViewModel :
 
             _activeSession = session;
 
-            CurrentPage =
-                new MainVaultViewModel(
+            MainVaultViewModel vaultViewModel =
+                new(
                     request.VaultName,
                     session,
                     LockVaultAsync);
+
+            _activeVaultViewModel =
+                vaultViewModel;
+
+            CurrentPage =
+                vaultViewModel;
+
+            _inactivityService.Start();
         }
         catch (CryptographicException)
         {
@@ -200,10 +265,13 @@ public sealed class MainViewModel :
     {
         ThrowIfDisposed();
 
+        _inactivityService.Stop();
+
         VaultSession? session =
             _activeSession;
 
         _activeSession = null;
+        _activeVaultViewModel = null;
 
         if (session is not null)
         {
@@ -216,6 +284,98 @@ public sealed class MainViewModel :
         _vaultSelectionViewModel
             .RefreshCommand
             .Execute(null);
+    }
+
+    [RelayCommand]
+    private void KeepVaultOpen()
+    {
+        _inactivityService.RecordInteraction();
+    }
+
+    private void UpdateInactivityWarning(
+        VaultInactivityEvaluation? evaluation)
+    {
+        if (!evaluation.HasValue)
+        {
+            IsInactivityWarningVisible = false;
+            IsInactivityWarningActionAvailable = false;
+            InactivityWarningStatusText = string.Empty;
+            InactivityWarningRemainingPercentage = 0;
+            return;
+        }
+
+        VaultInactivityEvaluation state =
+            evaluation.Value;
+
+        IsInactivityWarningVisible = true;
+        IsInactivityWarningActionAvailable =
+            !state.IsExpired;
+
+        InactivityWarningStatusText = state.IsExpired
+            ? "Locking the vault without saving and closing Cripty..."
+            : "The vault will lock without saving and Cripty will close in:";
+
+        InactivityWarningCountdownText = state.IsExpired
+            ? "NOW"
+            : FormatCountdown(state.Remaining);
+
+        InactivityWarningRemainingPercentage =
+            state.RemainingWarningPercentage;
+    }
+
+    private async Task HandleInactivityTimeoutAsync()
+    {
+        if (_disposed ||
+            _isInactivityShutdown)
+        {
+            return;
+        }
+
+        _isInactivityShutdown = true;
+
+        MainVaultViewModel? vaultViewModel =
+            _activeVaultViewModel;
+
+        VaultSession? session =
+            _activeSession;
+
+        _activeVaultViewModel = null;
+        _activeSession = null;
+
+        vaultViewModel?.PrepareForSessionDisposal();
+
+        try
+        {
+            if (session is not null)
+            {
+                // This is intentionally a discard-only path. It never calls
+                // SaveAsync and never opens the normal unsaved-work prompt.
+                await session.DisposeAsync();
+            }
+        }
+        finally
+        {
+            _shutdownApplication();
+        }
+    }
+
+    private static string FormatCountdown(
+        TimeSpan remaining)
+    {
+        int totalSeconds = Math.Max(
+            0,
+            (int)Math.Ceiling(
+                remaining.TotalSeconds));
+
+        TimeSpan display =
+            TimeSpan.FromSeconds(totalSeconds);
+
+        return display.TotalHours >= 1
+            ? $"{(int)display.TotalHours:00}:" +
+              $"{display.Minutes:00}:" +
+              $"{display.Seconds:00}"
+            : $"{display.Minutes:00}:" +
+              $"{display.Seconds:00}";
     }
 
     private void ThrowIfDisposed()
@@ -231,6 +391,10 @@ public sealed class MainViewModel :
             return;
 
         _disposed = true;
+
+        _inactivityService.Dispose();
+        _activeVaultViewModel?.PrepareForSessionDisposal();
+        _activeVaultViewModel = null;
 
         VaultSession? session =
             _activeSession;

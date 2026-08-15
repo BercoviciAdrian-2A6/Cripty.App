@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -46,6 +47,8 @@ public partial class MainVaultViewModel :
     private int _selectedPasswordKdfMemorySizeKiB;
     private int _selectedPasswordKdfIterations;
     private int _selectedPasswordKdfParallelism;
+    private CancellationTokenSource?
+        _passwordChangeCancellation;
 
     private VaultFolderListItemViewModel?
         _selectedFolder;
@@ -292,6 +295,27 @@ public partial class MainVaultViewModel :
         get;
         private set;
     }
+
+    [ObservableProperty]
+    public partial double PasswordChangeProgressPercentage
+    {
+        get;
+        private set;
+    }
+
+    [ObservableProperty]
+    public partial string PasswordChangeProgressPercentageText
+    {
+        get;
+        private set;
+    } = "0%";
+
+    [ObservableProperty]
+    public partial string PasswordChangeProgressStatusText
+    {
+        get;
+        private set;
+    } = "Preparing fresh root key...";
 
     [ObservableProperty]
     public partial string NewPassword
@@ -2000,13 +2024,25 @@ public partial class MainVaultViewModel :
 
         IsBusy = true;
         IsChangingPassword = true;
+        PasswordChangeProgressPercentage = 0;
+        PasswordChangeProgressPercentageText = "0%";
+        PasswordChangeProgressStatusText =
+            "Preparing fresh root key...";
+
+        CancellationTokenSource cancellationSource = new();
+        _passwordChangeCancellation = cancellationSource;
+
+        Progress<VaultPasswordChangeProgress> progress =
+            new(ApplyPasswordChangeProgress);
 
         try
         {
             await Task.Run(() =>
                 _session.ChangePasswordAsync(
                     submittedPassword,
-                    submittedKdfParameters));
+                    submittedKdfParameters,
+                    progress,
+                    cancellationSource.Token));
 
             ClosePasswordChange();
             IsMoreOptionsOpen = false;
@@ -2014,6 +2050,12 @@ public partial class MainVaultViewModel :
             SaveStatusText =
                 $"PASSWORD CHANGED {DateTime.Now:HH:mm:ss} · " +
                 $"GENERATION {_session.ManifestGeneration}";
+        }
+        catch (OperationCanceledException)
+            when (cancellationSource.IsCancellationRequested)
+        {
+            // Inactivity locking cancels a staged rotation so the
+            // original vault can be discarded and closed promptly.
         }
         catch (Exception exception)
             when (IsExpectedOperationFailure(
@@ -2024,10 +2066,48 @@ public partial class MainVaultViewModel :
         }
         finally
         {
+            if (ReferenceEquals(
+                    _passwordChangeCancellation,
+                    cancellationSource))
+            {
+                _passwordChangeCancellation = null;
+            }
+
+            cancellationSource.Dispose();
             submittedPassword = string.Empty;
             IsChangingPassword = false;
             IsBusy = false;
         }
+    }
+
+    private void ApplyPasswordChangeProgress(
+        VaultPasswordChangeProgress progress)
+    {
+        PasswordChangeProgressPercentage =
+            progress.Percentage;
+
+        PasswordChangeProgressPercentageText =
+            $"{progress.Percentage:0}%";
+
+        PasswordChangeProgressStatusText = progress.Stage switch
+        {
+            VaultPasswordChangeStage.GeneratingRootKey =>
+                "Generating a fresh root key...",
+            VaultPasswordChangeStage.PreparingVault =>
+                "Protecting the fresh key with the new password...",
+            VaultPasswordChangeStage.ReencryptingContent =>
+                $"Re-encrypting {progress.ProcessedEntries}/" +
+                $"{progress.TotalEntries} entries · " +
+                $"{progress.ProcessedBlobs}/" +
+                $"{progress.TotalBlobs} blobs",
+            VaultPasswordChangeStage.Verifying =>
+                "Verifying every rotated entry and blob...",
+            VaultPasswordChangeStage.Publishing =>
+                "Publishing the verified vault...",
+            VaultPasswordChangeStage.Completed =>
+                "Password change complete.",
+            _ => "Changing vault password..."
+        };
     }
 
     [RelayCommand]
@@ -2844,6 +2924,19 @@ public partial class MainVaultViewModel :
         {
             IsBusy = false;
         }
+    }
+
+    internal void PrepareForSessionDisposal()
+    {
+        _passwordChangeCancellation?.Cancel();
+
+        // Detaching the editor closes image viewer windows and releases
+        // decoded image surfaces before the session key is destroyed.
+        CloseEntryEditorWithoutRefresh();
+
+        ClearPasswordChangeInputs();
+        CopyPassword = string.Empty;
+        DialogInput = string.Empty;
     }
 
     private void SelectFolder(

@@ -350,9 +350,22 @@ public sealed class VaultSession : IAsyncDisposable
         }
     }
 
-    public async Task ChangePasswordAsync(
+    public Task ChangePasswordAsync(
         string newPassword,
         Argon2idParameters? newKdfParameters = null,
+        CancellationToken cancellationToken = default)
+    {
+        return ChangePasswordAsync(
+            newPassword,
+            newKdfParameters,
+            progress: null,
+            cancellationToken);
+    }
+
+    public async Task ChangePasswordAsync(
+        string newPassword,
+        Argon2idParameters? newKdfParameters,
+        IProgress<VaultPasswordChangeProgress>? progress,
         CancellationToken cancellationToken = default)
     {
         await _operationGate.WaitAsync(
@@ -386,6 +399,7 @@ public sealed class VaultSession : IAsyncDisposable
                     _vaultRootKey,
                     newPassword,
                     newKdfParameters,
+                    progress,
                     cancellationToken)
                 .ConfigureAwait(false);
 

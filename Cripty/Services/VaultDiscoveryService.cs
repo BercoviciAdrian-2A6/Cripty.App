@@ -50,6 +50,13 @@ public sealed class VaultDiscoveryService
         {
             cancellationToken.ThrowIfCancellationRequested();
 
+            if (new DirectoryInfo(directoryPath).Name.StartsWith(
+                    ".cripty-",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
             string vaultFilePath = Path.Combine(
                 directoryPath,
                 VaultFileName);

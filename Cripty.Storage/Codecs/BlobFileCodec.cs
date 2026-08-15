@@ -9,6 +9,11 @@ public sealed class BlobFileCodec
 {
     public const int CurrentFormatVersion = 1;
 
+    public static void ValidateStructure(BlobFile file)
+    {
+        Validate(file);
+    }
+
     public BlobFile Create(
         Guid vaultId,
         Guid blobId,

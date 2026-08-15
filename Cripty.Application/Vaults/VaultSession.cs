@@ -299,6 +299,36 @@ public sealed class VaultSession : IAsyncDisposable
                     password,
                     vaultRootKey);
 
+            if (vaultFile.ManifestGeneration is null)
+            {
+                vaultFile = new VaultFile
+                {
+                    FormatVersion = vaultFile.FormatVersion,
+                    VaultId = vaultFile.VaultId,
+                    ManifestGeneration = manifest.Generation,
+                    PasswordKeySlot = vaultFile.PasswordKeySlot,
+                    ManifestEnvelope = vaultFile.ManifestEnvelope
+                };
+
+                try
+                {
+                    await vaultFileStore.WriteAsync(
+                            normalizedPath,
+                            vaultFile,
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                }
+                catch (IOException)
+                {
+                    // The hint is optional. A read-only legacy vault should
+                    // still be unlockable even when it cannot be upgraded.
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    // Keep the authenticated in-memory generation hint.
+                }
+            }
+
             return new VaultSession(
                 normalizedPath,
                 vaultFile,

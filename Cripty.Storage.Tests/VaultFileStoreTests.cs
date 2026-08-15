@@ -194,6 +194,7 @@ public sealed class VaultFileStoreTests
         {
             FormatVersion = 1,
             VaultId = vaultId ?? Guid.NewGuid(),
+            ManifestGeneration = 7,
 
             PasswordKeySlot = new PasswordKeySlot
             {
@@ -245,6 +246,10 @@ public sealed class VaultFileStoreTests
         Assert.AreEqual(
             expected.VaultId,
             actual.VaultId);
+
+        Assert.AreEqual(
+            expected.ManifestGeneration,
+            actual.ManifestGeneration);
 
         Assert.AreEqual(
             expected.PasswordKeySlot

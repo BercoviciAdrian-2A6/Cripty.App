@@ -11,6 +11,7 @@ public sealed class VaultLocationService
 {
     private const string VaultContainerFolderName = "Cripty Vaults";
     private const string CustomVaultRootPathKey = "CustomVaultRootPath";
+    private const string BackupRootPathKey = "BackupRootPath";
 
     private readonly string _settingsFilePath;
 
@@ -26,17 +27,10 @@ public sealed class VaultLocationService
     {
         try
         {
-            if (!File.Exists(_settingsFilePath))
-                return DefaultVaultRootPath;
+            Dictionary<string, string?> settings =
+                LoadSettings();
 
-            string json = File.ReadAllText(_settingsFilePath);
-
-            Dictionary<string, string?>? settings =
-                JsonSerializer.Deserialize<Dictionary<string, string?>>(
-                    json);
-
-            if (settings is null ||
-                !settings.TryGetValue(
+            if (!settings.TryGetValue(
                     CustomVaultRootPathKey,
                     out string? customPath) ||
                 string.IsNullOrWhiteSpace(customPath))
@@ -55,6 +49,34 @@ public sealed class VaultLocationService
         {
             // Invalid or inaccessible settings should not prevent startup.
             return DefaultVaultRootPath;
+        }
+    }
+
+    public string? LoadBackupRootPath()
+    {
+        try
+        {
+            Dictionary<string, string?> settings =
+                LoadSettings();
+
+            if (!settings.TryGetValue(
+                    BackupRootPathKey,
+                    out string? backupPath) ||
+                string.IsNullOrWhiteSpace(backupPath))
+            {
+                return null;
+            }
+
+            return Path.GetFullPath(backupPath);
+        }
+        catch (Exception exception) when (
+            exception is IOException or
+            UnauthorizedAccessException or
+            JsonException or
+            ArgumentException or
+            NotSupportedException)
+        {
+            return null;
         }
     }
 
@@ -77,10 +99,51 @@ public sealed class VaultLocationService
                 ? null
                 : normalizedPath;
 
-        Dictionary<string, string?> settings = new()
+        await SaveSettingAsync(
+            CustomVaultRootPathKey,
+            customPath,
+            cancellationToken);
+    }
+
+    public async Task SaveBackupRootPathAsync(
+        string backupRootPath,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(backupRootPath))
         {
-            [CustomVaultRootPathKey] = customPath
-        };
+            throw new ArgumentException(
+                "The backup root path cannot be empty.",
+                nameof(backupRootPath));
+        }
+
+        await SaveSettingAsync(
+            BackupRootPathKey,
+            Path.GetFullPath(backupRootPath),
+            cancellationToken);
+    }
+
+    private async Task SaveSettingAsync(
+        string key,
+        string? value,
+        CancellationToken cancellationToken)
+    {
+        Dictionary<string, string?> settings;
+
+        try
+        {
+            settings = LoadSettings();
+        }
+        catch (Exception exception) when (
+            exception is IOException or
+            UnauthorizedAccessException or
+            JsonException)
+        {
+            // A damaged settings file should not prevent replacing it with
+            // the current valid preference.
+            settings = [];
+        }
+
+        settings[key] = value;
 
         string? settingsDirectory =
             Path.GetDirectoryName(_settingsFilePath);
@@ -104,6 +167,18 @@ public sealed class VaultLocationService
             _settingsFilePath,
             json,
             cancellationToken);
+    }
+
+    private Dictionary<string, string?> LoadSettings()
+    {
+        if (!File.Exists(_settingsFilePath))
+            return [];
+
+        string json = File.ReadAllText(_settingsFilePath);
+
+        return JsonSerializer
+                   .Deserialize<Dictionary<string, string?>>(json)
+               ?? [];
     }
 
     public bool IsDefaultPath(string path)

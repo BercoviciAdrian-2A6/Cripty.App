@@ -4,6 +4,7 @@ using Cripty.Core.Entries;
 using Cripty.Core.Vaults;
 using Cripty.Cryptography.Keys;
 using Cripty.Storage.FileSystem;
+using Cripty.Storage.Formats;
 
 namespace Cripty.Application.Tests;
 
@@ -83,6 +84,42 @@ public sealed class VaultSessionTests
                 _vaultDirectory,
                 Password,
                 TestKdfParameters));
+    }
+
+    [TestMethod]
+    public async Task OpenAsync_LegacyVault_AddsVisibleGenerationHint()
+    {
+        await using (VaultSession created =
+                     await CreateSessionAsync())
+        {
+        }
+
+        VaultFileStore store = new();
+        VaultFile current =
+            await store.ReadAsync(_vaultDirectory);
+
+        VaultFile legacy = new()
+        {
+            FormatVersion = current.FormatVersion,
+            VaultId = current.VaultId,
+            ManifestGeneration = null,
+            PasswordKeySlot = current.PasswordKeySlot,
+            ManifestEnvelope = current.ManifestEnvelope
+        };
+
+        await store.WriteAsync(_vaultDirectory, legacy);
+
+        await using VaultSession reopened =
+            await VaultSession.OpenAsync(
+                _vaultDirectory,
+                Password);
+
+        VaultFile upgraded =
+            await store.ReadAsync(_vaultDirectory);
+
+        Assert.AreEqual(
+            reopened.ManifestGeneration,
+            upgraded.ManifestGeneration);
     }
 
     [TestMethod]

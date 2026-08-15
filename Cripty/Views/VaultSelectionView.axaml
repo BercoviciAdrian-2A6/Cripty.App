@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Cripty.ViewModels"
              xmlns:model="using:Cripty.Models"
+             xmlns:application="using:Cripty.Application.Vaults"
              x:Class="Cripty.Views.VaultSelectionView"
              x:DataType="vm:VaultSelectionViewModel">
 
@@ -36,6 +37,29 @@
             <Setter Property="Background"
                     Value="#11291B" />
         </Style>
+
+        <Style Selector="Button.danger">
+            <Setter Property="Background"
+                    Value="#291B13" />
+            <Setter Property="Foreground"
+                    Value="{StaticResource CriptyDangerBrush}" />
+            <Setter Property="BorderBrush"
+                    Value="#6B4632" />
+        </Style>
+
+        <Style Selector="Button.danger /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Foreground"
+                    Value="{StaticResource CriptyDangerBrush}" />
+        </Style>
+
+        <Style Selector="Button.danger:pointerover">
+            <Setter Property="Background"
+                    Value="#48271A" />
+            <Setter Property="Foreground"
+                    Value="#FFC0A5" />
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource CriptyDangerBrush}" />
+        </Style>
     </UserControl.Styles>
 
     <Grid Background="{StaticResource CriptyBackgroundBrush}"
@@ -59,26 +83,37 @@
                                Foreground="{StaticResource CriptyTextMutedBrush}" />
                 </StackPanel>
 
-                <Border Grid.Column="1"
-                        Padding="12,7"
-                        Background="#0B1D13"
-                        BorderBrush="{StaticResource CriptyBorderBrush}"
-                        BorderThickness="1"
-                        CornerRadius="3"
-                        VerticalAlignment="Center">
-                    <StackPanel Orientation="Horizontal"
-                                Spacing="8">
-                        <Ellipse Width="7"
-                                 Height="7"
-                                 Fill="{StaticResource CriptyAccentBrush}" />
-
-                        <TextBlock Text="LOCAL MODE"
-                                   FontSize="11"
+                <StackPanel Grid.Column="1"
+                            Orientation="Horizontal"
+                            VerticalAlignment="Center"
+                            Spacing="10">
+                    <Button Classes="info-action"
+                            Command="{Binding OpenCloudDialogCommand}">
+                        <TextBlock Text="CLOUD BACKUP"
+                                   FontSize="10"
                                    FontWeight="SemiBold"
-                                   LetterSpacing="1"
-                                   Foreground="{StaticResource CriptyTextMutedBrush}" />
-                    </StackPanel>
-                </Border>
+                                   LetterSpacing="1.1" />
+                    </Button>
+
+                    <Border Padding="12,7"
+                            Background="#0B1D13"
+                            BorderBrush="{StaticResource CriptyBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="3">
+                        <StackPanel Orientation="Horizontal"
+                                    Spacing="8">
+                            <Ellipse Width="7"
+                                     Height="7"
+                                     Fill="{StaticResource CriptyAccentBrush}" />
+
+                            <TextBlock Text="LOCAL MODE"
+                                       FontSize="11"
+                                       FontWeight="SemiBold"
+                                       LetterSpacing="1"
+                                       Foreground="{StaticResource CriptyTextMutedBrush}" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
             </Grid>
         </Border>
 
@@ -376,5 +411,313 @@
                 </Grid>
             </Border>
         </Grid>
+
+        <!-- Locked-vault backup operations. The synchronized folder is a
+             normal local folder managed by the user's cloud client. -->
+        <Border Grid.RowSpan="2"
+                IsVisible="{Binding IsCloudDialogOpen}"
+                Background="#D907110D">
+            <Border Width="860"
+                    MaxHeight="720"
+                    Margin="36"
+                    Padding="24"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Background="{StaticResource CriptySurfaceBrush}"
+                    BorderBrush="{StaticResource CriptyBorderBrightBrush}"
+                    BorderThickness="1"
+                    CornerRadius="5">
+                <Grid RowDefinitions="Auto,18,Auto,18,*,16,Auto,16,Auto">
+                    <Grid Grid.Row="0"
+                          ColumnDefinitions="*,Auto">
+                        <StackPanel Spacing="5">
+                            <TextBlock Text="CLOUD BACKUP"
+                                       FontSize="20"
+                                       FontWeight="SemiBold"
+                                       LetterSpacing="1.5" />
+
+                            <TextBlock Text="Export and restore complete encrypted vault snapshots without unlocking them."
+                                       FontSize="12"
+                                       Foreground="{StaticResource CriptyTextMutedBrush}" />
+                        </StackPanel>
+
+                        <Button Grid.Column="1"
+                                Classes="ghost"
+                                Command="{Binding CloseCloudDialogCommand}">
+                            <TextBlock Text="CLOSE"
+                                       FontSize="10"
+                                       FontWeight="SemiBold"
+                                       LetterSpacing="1" />
+                        </Button>
+                    </Grid>
+
+                    <Border Grid.Row="2"
+                            Padding="14"
+                            Background="#09150F"
+                            BorderBrush="{StaticResource CriptyBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="3">
+                        <Grid ColumnDefinitions="*,Auto"
+                              RowDefinitions="Auto,7,Auto">
+                            <TextBlock Text="SYNCHRONIZED BACKUP FOLDER"
+                                       FontSize="10"
+                                       FontWeight="SemiBold"
+                                       LetterSpacing="1.4"
+                                       Foreground="{StaticResource CriptyTextMutedBrush}" />
+
+                            <Button Grid.Column="1"
+                                    Grid.RowSpan="3"
+                                    Classes="ghost"
+                                    IsEnabled="{Binding CanChooseCloudFolder}"
+                                    Click="ChooseCloudBackupFolder_Click">
+                                <TextBlock Text="CHOOSE FOLDER"
+                                           FontSize="10"
+                                           FontWeight="SemiBold"
+                                           LetterSpacing="1" />
+                            </Button>
+
+                            <TextBlock Grid.Row="2"
+                                       Text="{Binding CloudBackupRootPath}"
+                                       FontSize="12"
+                                       TextTrimming="CharacterEllipsis"
+                                       ToolTip.Tip="{Binding CloudBackupRootPath}" />
+                        </Grid>
+                    </Border>
+
+                    <Grid Grid.Row="4"
+                          ColumnDefinitions="1*,18,1.25*">
+                        <Border Grid.Column="0"
+                                Padding="16"
+                                Background="#09150F"
+                                BorderBrush="{StaticResource CriptyBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="3">
+                            <Grid RowDefinitions="Auto,10,Auto,14,*,14,Auto">
+                                <StackPanel Grid.Row="0"
+                                            Spacing="4">
+                                    <TextBlock Text="EXPORT VAULT"
+                                               FontSize="14"
+                                               FontWeight="SemiBold"
+                                               LetterSpacing="1" />
+
+                                    <TextBlock Text="Copies one complete encrypted vault from the current vault location."
+                                               FontSize="11"
+                                               LineHeight="16"
+                                               Foreground="{StaticResource CriptyTextMutedBrush}"
+                                               TextWrapping="Wrap" />
+                                </StackPanel>
+
+                                <TextBlock Grid.Row="2"
+                                           Text="LOCAL VAULT"
+                                           FontSize="9"
+                                           FontWeight="SemiBold"
+                                           LetterSpacing="1.3"
+                                           Foreground="{StaticResource CriptyTextMutedBrush}" />
+
+                                <ComboBox Grid.Row="4"
+                                          ItemsSource="{Binding Vaults}"
+                                          SelectedItem="{Binding SelectedExportVault, Mode=TwoWay}"
+                                          VerticalAlignment="Top">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate x:DataType="model:VaultListItem">
+                                            <TextBlock Text="{Binding Name}" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+
+                                <Button Grid.Row="6"
+                                        Classes="primary"
+                                        Command="{Binding ExportVaultCommand}"
+                                        HorizontalContentAlignment="Center">
+                                    <TextBlock Text="EXPORT ENCRYPTED BACKUP"
+                                               FontSize="10"
+                                               FontWeight="SemiBold"
+                                               LetterSpacing="1" />
+                                </Button>
+                            </Grid>
+                        </Border>
+
+                        <Border Grid.Column="2"
+                                Padding="16"
+                                Background="#09150F"
+                                BorderBrush="{StaticResource CriptyBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="3">
+                            <Grid RowDefinitions="Auto,10,*,12,Auto">
+                                <Grid Grid.Row="0"
+                                      ColumnDefinitions="*,Auto">
+                                    <StackPanel Spacing="4">
+                                        <TextBlock Text="IMPORT VAULT"
+                                                   FontSize="14"
+                                                   FontWeight="SemiBold"
+                                                   LetterSpacing="1" />
+
+                                        <TextBlock Text="Restores a backup into the current vault location."
+                                                   FontSize="11"
+                                                   Foreground="{StaticResource CriptyTextMutedBrush}" />
+                                    </StackPanel>
+
+                                    <Button Grid.Column="1"
+                                            Classes="ghost"
+                                            Padding="10,6"
+                                            Command="{Binding RefreshCloudBackupsCommand}">
+                                        <TextBlock Text="↻"
+                                                   FontSize="16" />
+                                    </Button>
+                                </Grid>
+
+                                <Grid Grid.Row="2">
+                                    <ListBox ItemsSource="{Binding CloudBackups}"
+                                             SelectedItem="{Binding SelectedCloudBackup, Mode=TwoWay}"
+                                             MinHeight="150"
+                                             MaxHeight="250">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate x:DataType="application:VaultBackupInfo">
+                                                <StackPanel Margin="4"
+                                                            Spacing="3">
+                                                    <TextBlock Text="{Binding VaultName}"
+                                                               FontWeight="SemiBold" />
+
+                                                    <TextBlock Text="{Binding DisplayName}"
+                                                               FontSize="10"
+                                                               Foreground="{StaticResource CriptyTextMutedBrush}"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+
+                                    <TextBlock Text="NO VALID BACKUPS FOUND"
+                                               IsVisible="{Binding ShowNoCloudBackups}"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               FontSize="10"
+                                               FontWeight="SemiBold"
+                                               LetterSpacing="1.2"
+                                               Foreground="{StaticResource CriptyTextMutedBrush}" />
+                                </Grid>
+
+                                <Button Grid.Row="4"
+                                        Classes="info-action"
+                                        Command="{Binding ImportVaultCommand}"
+                                        HorizontalContentAlignment="Center">
+                                    <TextBlock Text="IMPORT SELECTED BACKUP"
+                                               FontSize="10"
+                                               FontWeight="SemiBold"
+                                               LetterSpacing="1" />
+                                </Button>
+                            </Grid>
+                        </Border>
+                    </Grid>
+
+                    <Border Grid.Row="6"
+                            IsVisible="{Binding HasCloudError}"
+                            Padding="11"
+                            Background="#291B13"
+                            BorderBrush="{StaticResource CriptyDangerBrush}"
+                            BorderThickness="1"
+                            CornerRadius="3">
+                        <TextBlock Text="{Binding CloudErrorMessage}"
+                                   Foreground="{StaticResource CriptyDangerBrush}"
+                                   TextWrapping="Wrap" />
+                    </Border>
+
+                    <Border Grid.Row="6"
+                            IsVisible="{Binding HasCloudStatus}"
+                            Padding="11"
+                            Background="#102331"
+                            BorderBrush="{StaticResource CriptyInfoBrush}"
+                            BorderThickness="1"
+                            CornerRadius="3">
+                        <TextBlock Text="{Binding CloudStatusMessage}"
+                                   Foreground="{StaticResource CriptyInfoBrush}"
+                                   TextWrapping="Wrap" />
+                    </Border>
+
+                    <TextBlock Grid.Row="8"
+                               Text="The cloud provider only sees the already encrypted vault files and backup metadata."
+                               HorizontalAlignment="Center"
+                               FontSize="10"
+                               Foreground="{StaticResource CriptyTextMutedBrush}" />
+
+                    <Border Grid.RowSpan="9"
+                            IsVisible="{Binding IsCloudBusy}"
+                            Background="#B807110D">
+                        <StackPanel HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    Spacing="10">
+                            <ProgressBar Width="260"
+                                         Height="3"
+                                         IsIndeterminate="True" />
+
+                            <TextBlock Text="VERIFYING ENCRYPTED VAULT FILES"
+                                       FontSize="10"
+                                       FontWeight="SemiBold"
+                                       LetterSpacing="1.3" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+        </Border>
+
+        <Border Grid.RowSpan="2"
+                IsVisible="{Binding IsReplaceConfirmationOpen}"
+                Background="#E507110D">
+            <Border Width="540"
+                    Padding="24"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Background="{StaticResource CriptySurfaceBrush}"
+                    BorderBrush="{StaticResource CriptyDangerBrush}"
+                    BorderThickness="1"
+                    CornerRadius="5">
+                <StackPanel Spacing="16">
+                    <TextBlock Text="ANOTHER VERSION OF THIS VAULT ALREADY EXISTS"
+                               FontSize="16"
+                               FontWeight="SemiBold"
+                               LetterSpacing="1"
+                               TextWrapping="Wrap" />
+
+                    <TextBlock Text="Replacing it will not merge their changes. A complete encrypted recovery backup of the current version will be created first."
+                               FontSize="12"
+                               LineHeight="18"
+                               Foreground="{StaticResource CriptyTextMutedBrush}"
+                               TextWrapping="Wrap" />
+
+                    <Border Padding="14"
+                            Background="#09150F"
+                            BorderBrush="{StaticResource CriptyBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="3">
+                        <StackPanel Spacing="7">
+                            <TextBlock Text="{Binding ReplacementCurrentGenerationText}" />
+                            <TextBlock Text="{Binding ReplacementImportedGenerationText}"
+                                       Foreground="{StaticResource CriptyInfoBrush}" />
+                        </StackPanel>
+                    </Border>
+
+                    <Grid ColumnDefinitions="*,12,*">
+                        <Button Classes="ghost"
+                                Command="{Binding CancelReplaceVaultCommand}"
+                                HorizontalContentAlignment="Center">
+                            <TextBlock Text="CANCEL"
+                                       FontSize="10"
+                                       FontWeight="SemiBold"
+                                       LetterSpacing="1" />
+                        </Button>
+
+                        <Button Grid.Column="2"
+                                Classes="danger"
+                                Command="{Binding ConfirmReplaceVaultCommand}"
+                                HorizontalContentAlignment="Center">
+                            <TextBlock Text="REPLACE CURRENT VAULT"
+                                       FontSize="10"
+                                       FontWeight="SemiBold"
+                                       LetterSpacing="1" />
+                        </Button>
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </Border>
     </Grid>
 </UserControl>

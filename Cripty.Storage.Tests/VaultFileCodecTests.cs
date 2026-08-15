@@ -47,6 +47,10 @@ public sealed class VaultFileCodecTests
 
             Assert.AreEqual(vaultId, file.VaultId);
 
+            Assert.AreEqual(
+                original.Generation,
+                file.ManifestGeneration);
+
             CollectionAssert.AreEqual(
                 rootKey,
                 restoredRootKey);
@@ -141,6 +145,7 @@ public sealed class VaultFileCodecTests
             {
                 FormatVersion = original.FormatVersion,
                 VaultId = original.VaultId,
+                ManifestGeneration = original.ManifestGeneration,
 
                 PasswordKeySlot = new PasswordKeySlot
                 {
@@ -210,6 +215,7 @@ public sealed class VaultFileCodecTests
             {
                 FormatVersion = original.FormatVersion,
                 VaultId = original.VaultId,
+                ManifestGeneration = original.ManifestGeneration,
 
                 PasswordKeySlot =
                     original.PasswordKeySlot,
@@ -262,6 +268,7 @@ public sealed class VaultFileCodecTests
             {
                 FormatVersion = original.FormatVersion,
                 VaultId = Guid.NewGuid(),
+                ManifestGeneration = original.ManifestGeneration,
 
                 PasswordKeySlot =
                     original.PasswordKeySlot,
@@ -275,6 +282,54 @@ public sealed class VaultFileCodecTests
                     tamperedFile,
                     Password,
                     destination));
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(rootKey);
+            CryptographicOperations.ZeroMemory(destination);
+        }
+    }
+
+    [TestMethod]
+    public void Open_TamperedVisibleGeneration_Throws()
+    {
+        Guid vaultId = Guid.NewGuid();
+        byte[] rootKey = CodecTestData.CreateRootKey();
+        byte[] destination = new byte[rootKey.Length];
+
+        VaultManifest manifest =
+            CodecTestData.CreateManifest(
+                vaultId,
+                generation: 4);
+
+        VaultFileCodec codec = new();
+
+        try
+        {
+            VaultFile original = codec.Create(
+                manifest,
+                rootKey,
+                Password,
+                CodecTestData.TestKdfParameters);
+
+            VaultFile tampered = new()
+            {
+                FormatVersion = original.FormatVersion,
+                VaultId = original.VaultId,
+                ManifestGeneration = 5,
+                PasswordKeySlot = original.PasswordKeySlot,
+                ManifestEnvelope = original.ManifestEnvelope
+            };
+
+            Assert.ThrowsExactly<InvalidDataException>(
+                () => codec.Open(
+                    tampered,
+                    Password,
+                    destination));
+
+            CollectionAssert.AreEqual(
+                new byte[rootKey.Length],
+                destination);
         }
         finally
         {
@@ -312,6 +367,7 @@ public sealed class VaultFileCodecTests
                     VaultFileCodec.CurrentFormatVersion + 1,
 
                 VaultId = original.VaultId,
+                ManifestGeneration = original.ManifestGeneration,
 
                 PasswordKeySlot =
                     original.PasswordKeySlot,
@@ -378,6 +434,10 @@ public sealed class VaultFileCodecTests
             Assert.AreEqual(
                 originalFile.VaultId,
                 updatedFile.VaultId);
+
+            Assert.AreEqual(
+                modifiedManifest.Generation,
+                updatedFile.ManifestGeneration);
 
             Assert.AreEqual(
                 originalFile.PasswordKeySlot
@@ -525,6 +585,9 @@ public sealed class VaultFileCodecTests
 
                 VaultId =
                     originalFile.VaultId,
+
+                ManifestGeneration =
+                    originalFile.ManifestGeneration,
 
                 PasswordKeySlot =
                     originalFile.PasswordKeySlot,

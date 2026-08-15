@@ -26,6 +26,11 @@ public sealed class VaultFileCodec
             : new JsonSerializerOptions(jsonOptions);
     }
 
+    public static void ValidateStructure(VaultFile file)
+    {
+        Validate(file);
+    }
+
     public VaultFile Create(
     VaultManifest manifest,
     ReadOnlySpan<byte> vaultRootKey,
@@ -99,6 +104,7 @@ public sealed class VaultFileCodec
             {
                 FormatVersion = CurrentFormatVersion,
                 VaultId = manifest.VaultId,
+                ManifestGeneration = manifest.Generation,
 
                 PasswordKeySlot = new PasswordKeySlot
                 {
@@ -182,6 +188,7 @@ public sealed class VaultFileCodec
                 //create new vault file with everything as is except updated manifest
                 FormatVersion = existingFile.FormatVersion,
                 VaultId = existingFile.VaultId,
+                ManifestGeneration = modifiedManifest.Generation,
                 PasswordKeySlot = existingFile.PasswordKeySlot,
                 ManifestEnvelope = updatedManifestEnvelope
             };
@@ -307,6 +314,14 @@ public sealed class VaultFileCodec
 
             VaultManifestValidator.Validate(manifest);
 
+            if (file.ManifestGeneration is long exposedGeneration &&
+                exposedGeneration != manifest.Generation)
+            {
+                throw new InvalidDataException(
+                    "The visible manifest generation does not match " +
+                    "the protected manifest generation.");
+            }
+
             unwrappedRootKey.CopyTo(
                 vaultRootKeyDestination);
 
@@ -343,6 +358,12 @@ public sealed class VaultFileCodec
         {
             throw new InvalidDataException(
                 "The vault file has an empty vault ID.");
+        }
+
+        if (file.ManifestGeneration < 0)
+        {
+            throw new InvalidDataException(
+                "The vault file has an invalid manifest generation.");
         }
 
         if (file.PasswordKeySlot is null)

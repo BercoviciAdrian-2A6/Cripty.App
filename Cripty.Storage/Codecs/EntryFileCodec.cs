@@ -29,6 +29,11 @@ public sealed class EntryFileCodec
             new VaultEntryMapper(_jsonOptions);
     }
 
+    public static void ValidateStructure(EntryFile file)
+    {
+        Validate(file);
+    }
+
     public EntryFile Create(
         Guid vaultId,
         VaultEntry entry,

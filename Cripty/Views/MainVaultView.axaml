@@ -1294,7 +1294,7 @@
                                    FontWeight="SemiBold"
                                    LetterSpacing="1" />
 
-                        <TextBlock Text="Choose a new password and the Argon2id parameters that will protect this vault. The current unlocked root key will be rewrapped with a fresh salt."
+                        <TextBlock Text="Choose a new password and the Argon2id parameters that will protect this vault. A fresh root key is generated and every entry and blob is re-encrypted before the rotated vault replaces the current one. Temporary free space roughly equal to the vault size is required."
                                    FontSize="11"
                                    LineHeight="17"
                                    Foreground="{StaticResource CriptyTextMutedBrush}"

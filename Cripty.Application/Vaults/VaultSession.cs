@@ -364,27 +364,35 @@ public sealed class VaultSession : IAsyncDisposable
             EnsureNotDisposed();
             ValidatePassword(newPassword);
 
-            if (HasUnsavedUserChangesCore())
+            if (HasPendingSaveWorkCore())
             {
                 throw new InvalidOperationException(
-                    "Save or discard all changes before changing " +
-                    "the password.");
+                    "Save, discard, or complete cleanup of all " +
+                    "pending changes before changing the password.");
             }
 
-            VaultFile updatedVaultFile =
-                _vaultFileCodec.Create(
+            VaultKeyRotationService rotationService = new(
+                _vaultFileCodec,
+                _entryFileCodec,
+                _blobFileCodec,
+                _vaultFileStore,
+                _entryFileStore,
+                _blobFileStore);
+
+            using VaultKeyRotationResult rotation =
+                await rotationService.RotateAsync(
+                    VaultDirectoryPath,
                     Manifest,
                     _vaultRootKey,
                     newPassword,
-                    newKdfParameters);
-
-            await _vaultFileStore.WriteAsync(
-                    VaultDirectoryPath,
-                    updatedVaultFile,
+                    newKdfParameters,
                     cancellationToken)
                 .ConfigureAwait(false);
 
-            _vaultFile = updatedVaultFile;
+            rotation.CopyRootKeyTo(_vaultRootKey);
+            Manifest = rotation.Manifest;
+            _vaultFile = rotation.VaultFile;
+            RebuildIndex();
         }
         finally
         {

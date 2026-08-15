@@ -648,13 +648,13 @@ public partial class MainVaultViewModel :
 
     public string PasswordChangeActionText =>
         IsChangingPassword
-            ? "CHANGING..."
+            ? "ROTATING VAULT KEY..."
             : "CHANGE PASSWORD";
 
     public string PasswordChangeAvailabilityText =>
         HasSaveWork
             ? "Save all pending changes before changing the password."
-            : "Rewraps the vault key with a fresh salt. Entry files are not re-encrypted.";
+            : "Generates a new root key and re-encrypts every entry and blob.";
 
     public int MinimumPasswordKdfMemorySizeMiB =>
         Argon2idParameters.MinimumMemorySizeKiB /

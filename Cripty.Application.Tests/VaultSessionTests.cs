@@ -1167,7 +1167,7 @@ public sealed class VaultSessionTests
     }
 
     [TestMethod]
-    public async Task ChangePasswordAsync_RequiresCleanSessionAndRewrapsVault()
+    public async Task ChangePasswordAsync_RequiresCleanSessionAndRotatesVault()
     {
         Guid vaultId;
         Guid entryId;
@@ -1200,9 +1200,8 @@ public sealed class VaultSessionTests
                 ChangedKdfParameters,
                 session.PasswordKdfParameters);
 
-            // Password changes do not alter the manifest.
             Assert.AreEqual(
-                generationBefore,
+                generationBefore + 1,
                 session.ManifestGeneration);
         }
 

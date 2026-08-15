@@ -222,6 +222,68 @@ public sealed class MainVaultCopySelectionTests
         Assert.IsFalse(viewModel.IsCopySelectionMode);
     }
 
+    [TestMethod]
+    public async Task DoubleTap_OpensTheTappedEntry()
+    {
+        await using VaultSession session =
+            await VaultSession.CreateAsync(
+                _vaultDirectory,
+                Password,
+                TestKdfParameters);
+
+        session.CreateEntry("First entry");
+
+        Guid secondEntryId =
+            session.CreateEntry("Second entry").EntryId;
+
+        await session.SaveAsync();
+
+        MainVaultViewModel viewModel =
+            new(
+                "Source",
+                session,
+                () => Task.CompletedTask);
+
+        VaultEntryListItemViewModel secondEntry =
+            viewModel.EntryItems.Single(entry =>
+                entry.EntryId == secondEntryId);
+
+        await viewModel.OpenEntryFromDoubleTapAsync(
+            secondEntry);
+
+        Assert.IsTrue(viewModel.HasOpenEntry);
+        Assert.AreEqual(
+            secondEntryId,
+            viewModel.EntryEditor!.EntryId);
+    }
+
+    [TestMethod]
+    public async Task DoubleTap_DoesNotOpenEntryInCopySelectionMode()
+    {
+        await using VaultSession session =
+            await VaultSession.CreateAsync(
+                _vaultDirectory,
+                Password,
+                TestKdfParameters);
+
+        session.CreateEntry("Entry");
+        await session.SaveAsync();
+
+        MainVaultViewModel viewModel =
+            new(
+                "Source",
+                session,
+                () => Task.CompletedTask);
+
+        viewModel.EnterCopySelectionCommand.Execute(null);
+
+        await viewModel.OpenEntryFromDoubleTapAsync(
+            viewModel.EntryItems.Single());
+
+        Assert.IsTrue(viewModel.IsCopySelectionMode);
+        Assert.IsFalse(viewModel.HasOpenEntry);
+    }
+
     private static Argon2idParameters TestKdfParameters =>
         new()
         {

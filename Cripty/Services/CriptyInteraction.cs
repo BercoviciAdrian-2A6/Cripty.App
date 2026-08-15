@@ -34,11 +34,11 @@ internal static class CriptyInteraction
             routes,
             handledEventsToo: true);
 
-        inputRoot.AddHandler(
+        /*inputRoot.AddHandler(
             InputElement.PointerMovedEvent,
             ReportPointerInteraction,
             routes,
-            handledEventsToo: true);
+            handledEventsToo: true);*/
 
         inputRoot.AddHandler(
             InputElement.PointerWheelChangedEvent,
@@ -61,12 +61,12 @@ internal static class CriptyInteraction
         Report();
     }
 
-    private static void ReportPointerInteraction(
+    /*private static void ReportPointerInteraction(
         object? sender,
         PointerEventArgs eventArgs)
     {
         Report();
-    }
+    }*/
 
     private static void ReportTextInteraction(
         object? sender,

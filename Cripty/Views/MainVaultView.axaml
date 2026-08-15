@@ -998,6 +998,7 @@
                                                 Classes.modified-entry="{Binding IsModifiedEntry}"
                                                 Classes.pending-deletion="{Binding IsPendingDeletion}"
                                                 HorizontalAlignment="Stretch"
+                                                DoubleTapped="OpenEntryOnDoubleTapped"
                                                 Command="{Binding SelectCommand}">
 
                                             <Grid ColumnDefinitions="Auto,*,Auto">

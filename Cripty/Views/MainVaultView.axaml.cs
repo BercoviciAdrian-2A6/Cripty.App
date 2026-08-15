@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 
@@ -12,6 +13,26 @@ public partial class MainVaultView :
     public MainVaultView()
     {
         InitializeComponent();
+    }
+
+    private async void OpenEntryOnDoubleTapped(
+        object? sender,
+        TappedEventArgs eventArgs)
+    {
+        if (sender is not Control
+            {
+                DataContext:
+                    global::Cripty.ViewModels.VaultEntryListItemViewModel entry
+            } ||
+            DataContext is not
+                global::Cripty.ViewModels.MainVaultViewModel viewModel)
+        {
+            return;
+        }
+
+        eventArgs.Handled = true;
+
+        await viewModel.OpenEntryFromDoubleTapAsync(entry);
     }
 
     private void InsertNewPasswordSpecialCharacter(

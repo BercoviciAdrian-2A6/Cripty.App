@@ -1372,6 +1372,25 @@ public partial class MainVaultViewModel :
         }
     }
 
+    internal async Task OpenEntryFromDoubleTapAsync(
+        VaultEntryListItemViewModel entry)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+
+        if (IsCopySelectionMode ||
+            !EntryItems.Contains(entry))
+        {
+            return;
+        }
+
+        SelectEntry(entry);
+
+        if (CanOpenEntry())
+        {
+            await OpenEntryAsync();
+        }
+    }
+
     [RelayCommand(CanExecute = nameof(CanMoveFolder))]
     private void OpenFolderMove()
     {

@@ -2986,6 +2986,70 @@ public partial class MainVaultViewModel :
         OpenFolderMoveCommand.NotifyCanExecuteChanged();
     }
 
+    private bool CanUseFolderContextAction(
+        VaultFolderListItemViewModel folder,
+        bool requireRegularFolder = false)
+    {
+        return CanMutateVault() &&
+            FolderItems.Contains(folder) &&
+            folder.Kind is not
+                VaultFolderFilterKind.AllEntries &&
+            (!requireRegularFolder ||
+             folder.IsFolder);
+    }
+
+    private void NewEntryInFolder(
+        VaultFolderListItemViewModel folder)
+    {
+        if (!CanUseFolderContextAction(folder))
+        {
+            return;
+        }
+
+        SelectFolder(folder);
+        NewEntry();
+    }
+
+    private void NewFolderInFolder(
+        VaultFolderListItemViewModel folder)
+    {
+        if (!CanUseFolderContextAction(folder))
+        {
+            return;
+        }
+
+        SelectFolder(folder);
+        NewFolder();
+    }
+
+    private void MoveFolderFromContextMenu(
+        VaultFolderListItemViewModel folder)
+    {
+        if (!CanUseFolderContextAction(
+                folder,
+                requireRegularFolder: true))
+        {
+            return;
+        }
+
+        SelectFolder(folder);
+        OpenFolderMove();
+    }
+
+    private void DeleteFolderFromContextMenu(
+        VaultFolderListItemViewModel folder)
+    {
+        if (!CanUseFolderContextAction(
+                folder,
+                requireRegularFolder: true))
+        {
+            return;
+        }
+
+        SelectFolder(folder);
+        DeleteFolder();
+    }
+
     private void ToggleFolderExpansion(
         VaultFolderListItemViewModel folder)
     {
@@ -3462,7 +3526,11 @@ public partial class MainVaultViewModel :
                 ToggleFolderExpansion,
                 IsCopySelectionMode,
                 isCopySelected: false,
-                ToggleCopyFolderSelection));
+                ToggleCopyFolderSelection,
+                NewEntryInFolder,
+                NewFolderInFolder,
+                MoveFolderFromContextMenu,
+                DeleteFolderFromContextMenu));
 
         EntryDescriptor[] rootEntries =
             entries
@@ -3493,7 +3561,11 @@ public partial class MainVaultViewModel :
                 ToggleFolderExpansion,
                 IsCopySelectionMode,
                 isCopySelected: false,
-                ToggleCopyFolderSelection));
+                ToggleCopyFolderSelection,
+                NewEntryInFolder,
+                NewFolderInFolder,
+                MoveFolderFromContextMenu,
+                DeleteFolderFromContextMenu));
 
         HashSet<Guid> visited = [];
 
@@ -3605,7 +3677,11 @@ public partial class MainVaultViewModel :
                     IsCopySelectionMode,
                     _copySelectedFolderIds.Contains(
                         folder.FolderId),
-                    ToggleCopyFolderSelection));
+                    ToggleCopyFolderSelection,
+                    NewEntryInFolder,
+                    NewFolderInFolder,
+                    MoveFolderFromContextMenu,
+                    DeleteFolderFromContextMenu));
 
             if (_expandedFolderIds.Contains(
                     folder.FolderId))

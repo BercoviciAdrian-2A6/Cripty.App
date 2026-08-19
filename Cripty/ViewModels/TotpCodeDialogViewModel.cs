@@ -138,6 +138,35 @@ public partial class TotpCodeDialogViewModel :
         }
     }
 
+    public bool TryGetCurrentCode(
+        out string code)
+    {
+        code = string.Empty;
+
+        if (!IsOpen ||
+            _provisioningUri is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            code = _generator.GenerateCode(
+                    _provisioningUri,
+                    _clock())
+                .Value;
+
+            return true;
+        }
+        catch (Exception exception)
+            when (exception is ArgumentException or
+                  FormatException or
+                  OverflowException)
+        {
+            return false;
+        }
+    }
+
     [RelayCommand]
     private void Close()
     {

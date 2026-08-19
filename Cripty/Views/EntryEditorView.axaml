@@ -932,9 +932,9 @@
                                                 IsVisible="{Binding IsTextField}"
                                                 Click="CopyFieldContent"
                                                 Margin="0,0,8,0"
-                                                ToolTip.Tip="Copy this field's content to the clipboard">
+                                                ToolTip.Tip="{Binding CopyButtonToolTip}">
 
-                                            <TextBlock Text="COPY"
+                                            <TextBlock Text="{Binding CopyButtonText}"
                                                        FontSize="8"
                                                        FontWeight="SemiBold"
                                                        LetterSpacing="0.7" />

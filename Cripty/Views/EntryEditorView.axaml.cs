@@ -25,11 +25,34 @@ public partial class EntryEditorView : UserControl
     {
         InitializeComponent();
 
+        AddHandler(
+            InputElement.KeyDownEvent,
+            HandleEntryEditorKeyDown,
+            RoutingStrategies.Tunnel,
+            handledEventsToo: true);
+
         DetachedFromVisualTree +=
             (_, _) => CloseImageViewers();
 
         DataContextChanged +=
             (_, _) => CloseImageViewers();
+    }
+
+    private void HandleEntryEditorKeyDown(
+        object? sender,
+        KeyEventArgs eventArgs)
+    {
+        if (eventArgs.Key != Key.Escape ||
+            eventArgs.KeyModifiers !=
+                KeyModifiers.None ||
+            DataContext is not
+                EntryEditorViewModel viewModel)
+        {
+            return;
+        }
+
+        viewModel.HandleEscape();
+        eventArgs.Handled = true;
     }
 
     private void OpenImageViewer(
@@ -107,8 +130,17 @@ public partial class EntryEditorView : UserControl
 
         try
         {
-            await clipboard.SetTextAsync(
-                field.Text);
+            string value = field.Text;
+
+            if (field.IsTotpField &&
+                !field.TryGetCurrentTotpCode(
+                    DateTimeOffset.UtcNow,
+                    out value))
+            {
+                return;
+            }
+
+            await clipboard.SetTextAsync(value);
         }
         catch (Exception exception)
         {

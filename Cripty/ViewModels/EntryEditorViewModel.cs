@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Media.Imaging;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Cripty.Application.Vaults;
@@ -26,6 +27,7 @@ public partial class EntryEditorViewModel :
     private readonly Action<string> _recordUnsavedChange;
     private readonly Action<bool> _validationStateChanged;
     private readonly Action _close;
+    private readonly DispatcherTimer _totpCopyTimer;
 
     private int _schemaVersion;
     private long _revision;
@@ -87,10 +89,27 @@ public partial class EntryEditorViewModel :
             new TotpCodeDialogViewModel(
                 new TotpGenerator());
 
+        _totpCopyTimer =
+            new DispatcherTimer
+            {
+                Interval =
+                    TimeSpan.FromMilliseconds(
+                        250)
+            };
+
+        _totpCopyTimer.Tick +=
+            RefreshTotpCopyButtonTexts;
+
         ApplySnapshot(
             descriptor,
             entry,
             persistedEntry);
+
+        RefreshTotpCopyButtonTexts(
+            sender: null,
+            EventArgs.Empty);
+
+        _totpCopyTimer.Start();
     }
 
     public Guid EntryId { get; }
@@ -527,6 +546,43 @@ public partial class EntryEditorViewModel :
         {
             _close();
         }
+    }
+
+    internal void HandleEscape()
+    {
+        if (TotpCodeDialog.IsOpen)
+        {
+            TotpCodeDialog.CloseCommand.Execute(
+                parameter: null);
+
+            return;
+        }
+
+        if (PasswordInspectorDialog.IsOpen)
+        {
+            PasswordInspectorDialog.CloseCommand.Execute(
+                parameter: null);
+
+            return;
+        }
+
+        if (PasswordGeneratorDialog.IsOpen)
+        {
+            PasswordGeneratorDialog.CancelCommand.Execute(
+                parameter: null);
+
+            return;
+        }
+
+        if (IsAddFieldDialogOpen)
+        {
+            CancelAddFieldDialogCommand.Execute(
+                parameter: null);
+
+            return;
+        }
+
+        _close();
     }
 
     private bool CanAddTag()
@@ -1248,6 +1304,20 @@ public partial class EntryEditorViewModel :
         }
     }
 
+    private void RefreshTotpCopyButtonTexts(
+        object? sender,
+        EventArgs eventArgs)
+    {
+        DateTimeOffset timestamp =
+            DateTimeOffset.UtcNow;
+
+        foreach (EntryFieldViewModel field in Fields)
+        {
+            field.RefreshTotpCopyButtonText(
+                timestamp);
+        }
+    }
+
     private void EnsureNotDisposed()
     {
         ObjectDisposedException.ThrowIf(
@@ -1263,6 +1333,9 @@ public partial class EntryEditorViewModel :
         }
 
         _disposed = true;
+        _totpCopyTimer.Stop();
+        _totpCopyTimer.Tick -=
+            RefreshTotpCopyButtonTexts;
         DisposeFields();
         Fields.Clear();
     }
@@ -1390,6 +1463,9 @@ public partial class EntryFieldViewModel :
     ViewModelBase,
     IDisposable
 {
+    private static readonly TotpGenerator
+        TotpGenerator = new();
+
     private readonly Action _changed;
     private readonly Action<EntryFieldViewModel> _moveUp;
     private readonly Action<EntryFieldViewModel> _moveDown;
@@ -1477,6 +1553,8 @@ public partial class EntryFieldViewModel :
             !string.IsNullOrWhiteSpace(text);
 
         _isInitializing = false;
+        RefreshTotpCopyButtonText(
+            DateTimeOffset.UtcNow);
     }
 
     public EntryFieldViewModel(
@@ -1632,6 +1710,18 @@ public partial class EntryFieldViewModel :
         IsContentExpanded
             ? "Collapse this field's content"
             : "Expand this field's content";
+
+    [ObservableProperty]
+    public partial string CopyButtonText
+    {
+        get;
+        private set;
+    } = "COPY";
+
+    public string CopyButtonToolTip =>
+        IsTotpField
+            ? "Copy the current authentication code"
+            : "Copy this field's content to the clipboard";
 
     public string PresetText
     {
@@ -2049,6 +2139,67 @@ public partial class EntryFieldViewModel :
         IsModified = isModified;
     }
 
+    internal bool TryGetCurrentTotpCode(
+        DateTimeOffset timestamp,
+        out string code)
+    {
+        if (TryGenerateCurrentTotpCode(
+                timestamp,
+                out TotpCode currentCode))
+        {
+            code = currentCode.Value;
+            return true;
+        }
+
+        code = string.Empty;
+        return false;
+    }
+
+    internal void RefreshTotpCopyButtonText(
+        DateTimeOffset timestamp)
+    {
+        if (TryGenerateCurrentTotpCode(
+                timestamp,
+                out TotpCode code))
+        {
+            CopyButtonText =
+                $"COPY [{code.RemainingSeconds}s]";
+        }
+        else
+        {
+            CopyButtonText = "COPY";
+        }
+    }
+
+    private bool TryGenerateCurrentTotpCode(
+        DateTimeOffset timestamp,
+        out TotpCode code)
+    {
+        code = null!;
+
+        if (!IsTotpField ||
+            string.IsNullOrWhiteSpace(Text))
+        {
+            return false;
+        }
+
+        try
+        {
+            code = TotpGenerator.GenerateCode(
+                Text,
+                timestamp);
+
+            return true;
+        }
+        catch (Exception exception)
+            when (exception is ArgumentException or
+                  FormatException or
+                  OverflowException)
+        {
+            return false;
+        }
+    }
+
     public void Dispose()
     {
         if (_disposed)
@@ -2102,6 +2253,12 @@ public partial class EntryFieldViewModel :
 
         OnPropertyChanged(
             nameof(IsTotpField));
+
+        OnPropertyChanged(
+            nameof(CopyButtonToolTip));
+
+        RefreshTotpCopyButtonText(
+            DateTimeOffset.UtcNow);
 
         OnPropertyChanged(
             nameof(SupportsRichTextEditing));
@@ -2162,6 +2319,9 @@ public partial class EntryFieldViewModel :
 
         OpenTotpCodeCommand
             .NotifyCanExecuteChanged();
+
+        RefreshTotpCopyButtonText(
+            DateTimeOffset.UtcNow);
 
         if (!_isInitializing &&
             preset?.CollapseContentByDefault == true)

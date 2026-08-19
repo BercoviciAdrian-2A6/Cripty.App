@@ -666,6 +666,25 @@
                                                         Classes.copy-selected="{Binding IsCopySelected}"
                                                         Command="{Binding SelectCommand}">
 
+                                                    <Button.ContextMenu>
+                                                        <ContextMenu IsEnabled="{Binding CanCreateInFolder}">
+                                                            <MenuItem Header="NEW ENTRY"
+                                                                      Command="{Binding NewEntryCommand}" />
+
+                                                            <MenuItem Header="NEW FOLDER"
+                                                                      Command="{Binding NewFolderCommand}" />
+
+                                                            <Separator />
+
+                                                            <MenuItem Header="MOVE"
+                                                                      Command="{Binding MoveCommand}" />
+
+                                                            <MenuItem Header="DELETE"
+                                                                      Command="{Binding DeleteCommand}"
+                                                                      Foreground="{StaticResource CriptyDangerBrush}" />
+                                                        </ContextMenu>
+                                                    </Button.ContextMenu>
+
                                                     <Grid ColumnDefinitions="Auto,18,Auto,*,Auto">
                                                         <Border Width="{Binding IndentWidth}" />
 

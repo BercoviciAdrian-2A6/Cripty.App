@@ -109,6 +109,18 @@ public partial class VaultFolderListItemViewModel :
     private readonly Action<VaultFolderListItemViewModel>?
         _toggleCopySelection;
 
+    private readonly Action<VaultFolderListItemViewModel>?
+        _newEntry;
+
+    private readonly Action<VaultFolderListItemViewModel>?
+        _newFolder;
+
+    private readonly Action<VaultFolderListItemViewModel>?
+        _move;
+
+    private readonly Action<VaultFolderListItemViewModel>?
+        _delete;
+
     public VaultFolderListItemViewModel(
         VaultFolderFilterKind kind,
         Guid? folderId,
@@ -123,7 +135,15 @@ public partial class VaultFolderListItemViewModel :
         bool isCopySelectionMode = false,
         bool isCopySelected = false,
         Action<VaultFolderListItemViewModel>?
-            toggleCopySelection = null)
+            toggleCopySelection = null,
+        Action<VaultFolderListItemViewModel>?
+            newEntry = null,
+        Action<VaultFolderListItemViewModel>?
+            newFolder = null,
+        Action<VaultFolderListItemViewModel>?
+            move = null,
+        Action<VaultFolderListItemViewModel>?
+            delete = null)
     {
         Kind = kind;
         FolderId = folderId;
@@ -146,6 +166,11 @@ public partial class VaultFolderListItemViewModel :
 
         _toggleCopySelection =
             toggleCopySelection;
+
+        _newEntry = newEntry;
+        _newFolder = newFolder;
+        _move = move;
+        _delete = delete;
     }
 
     public VaultFolderFilterKind Kind { get; }
@@ -180,6 +205,19 @@ public partial class VaultFolderListItemViewModel :
         IsCopySelectionMode &&
         IsFolder;
 
+    public bool CanCreateInFolder =>
+        !IsCopySelectionMode &&
+        (Kind is VaultFolderFilterKind.Root or
+            VaultFolderFilterKind.Folder) &&
+        _newEntry is not null &&
+        _newFolder is not null;
+
+    public bool CanMoveOrDelete =>
+        CanCreateInFolder &&
+        IsFolder &&
+        _move is not null &&
+        _delete is not null;
+
     [ObservableProperty]
     public partial bool IsSelected
     {
@@ -213,6 +251,30 @@ public partial class VaultFolderListItemViewModel :
     private void ToggleCopySelection()
     {
         _toggleCopySelection?.Invoke(this);
+    }
+
+    [RelayCommand(CanExecute = nameof(CanCreateInFolder))]
+    private void NewEntry()
+    {
+        _newEntry?.Invoke(this);
+    }
+
+    [RelayCommand(CanExecute = nameof(CanCreateInFolder))]
+    private void NewFolder()
+    {
+        _newFolder?.Invoke(this);
+    }
+
+    [RelayCommand(CanExecute = nameof(CanMoveOrDelete))]
+    private void Move()
+    {
+        _move?.Invoke(this);
+    }
+
+    [RelayCommand(CanExecute = nameof(CanMoveOrDelete))]
+    private void Delete()
+    {
+        _delete?.Invoke(this);
     }
 
     internal void SetSelected(

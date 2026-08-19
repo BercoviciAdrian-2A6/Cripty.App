@@ -21,21 +21,55 @@ public partial class EntryEditorView : UserControl
     private readonly Dictionary<Guid, ImageViewerWindow>
         _imageViewers = [];
 
+    private InputElement? _escapeInputRoot;
+
     public EntryEditorView()
     {
         InitializeComponent();
 
-        AddHandler(
+        AttachedToVisualTree +=
+            (_, _) => AttachEscapeHandler();
+
+        DetachedFromVisualTree +=
+            (_, _) =>
+            {
+                DetachEscapeHandler();
+                CloseImageViewers();
+            };
+
+        DataContextChanged +=
+            (_, _) => CloseImageViewers();
+    }
+
+    private void AttachEscapeHandler()
+    {
+        InputElement? inputRoot =
+            TopLevel.GetTopLevel(this);
+
+        if (ReferenceEquals(
+                _escapeInputRoot,
+                inputRoot))
+        {
+            return;
+        }
+
+        DetachEscapeHandler();
+        _escapeInputRoot = inputRoot;
+
+        _escapeInputRoot?.AddHandler(
             InputElement.KeyDownEvent,
             HandleEntryEditorKeyDown,
             RoutingStrategies.Tunnel,
             handledEventsToo: true);
+    }
 
-        DetachedFromVisualTree +=
-            (_, _) => CloseImageViewers();
+    private void DetachEscapeHandler()
+    {
+        _escapeInputRoot?.RemoveHandler(
+            InputElement.KeyDownEvent,
+            HandleEntryEditorKeyDown);
 
-        DataContextChanged +=
-            (_, _) => CloseImageViewers();
+        _escapeInputRoot = null;
     }
 
     private void HandleEntryEditorKeyDown(

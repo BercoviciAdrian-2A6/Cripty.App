@@ -1718,6 +1718,13 @@ public partial class EntryFieldViewModel :
         private set;
     } = "COPY";
 
+    [ObservableProperty]
+    public partial bool IsCopyButtonEnabled
+    {
+        get;
+        private set;
+    } = true;
+
     public string CopyButtonToolTip =>
         IsTotpField
             ? "Copy the current authentication code"
@@ -2158,16 +2165,26 @@ public partial class EntryFieldViewModel :
     internal void RefreshTotpCopyButtonText(
         DateTimeOffset timestamp)
     {
+        if (!IsTotpField)
+        {
+            CopyButtonText = "COPY";
+            IsCopyButtonEnabled = true;
+            return;
+        }
+
         if (TryGenerateCurrentTotpCode(
                 timestamp,
                 out TotpCode code))
         {
             CopyButtonText =
                 $"COPY [{code.RemainingSeconds}s]";
+
+            IsCopyButtonEnabled = true;
         }
         else
         {
             CopyButtonText = "COPY";
+            IsCopyButtonEnabled = false;
         }
     }
 
@@ -2378,6 +2395,9 @@ public partial class EntryFieldViewModel :
 
         OpenTotpCodeCommand
             .NotifyCanExecuteChanged();
+
+        RefreshTotpCopyButtonText(
+            DateTimeOffset.UtcNow);
 
         if (!_isInitializing &&
             IsTextField)

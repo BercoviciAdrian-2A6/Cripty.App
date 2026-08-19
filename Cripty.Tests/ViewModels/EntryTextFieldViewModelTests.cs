@@ -48,12 +48,40 @@ public sealed class EntryFieldViewModelTests
             field.OpenTotpCodeCommand.CanExecute(
                 parameter: null));
 
+        Assert.IsFalse(
+            field.IsCopyButtonEnabled);
+
+        field.Text = "not a provisioning URI";
+
+        Assert.IsFalse(
+            field.IsCopyButtonEnabled);
+
         field.Text =
             "otpauth://totp/Test?secret=JBSWY3DPEHPK3PXP";
 
         Assert.IsTrue(
             field.OpenTotpCodeCommand.CanExecute(
                 parameter: null));
+
+        Assert.IsTrue(
+            field.IsCopyButtonEnabled);
+    }
+
+    [TestMethod]
+    public void NonTotpField_CopyRemainsEnabled()
+    {
+        EntryFieldViewModel field =
+            CreateField(
+                "Username",
+                string.Empty);
+
+        Assert.IsTrue(
+            field.IsCopyButtonEnabled);
+
+        field.Text = "any text";
+
+        Assert.IsTrue(
+            field.IsCopyButtonEnabled);
     }
 
     [TestMethod]
